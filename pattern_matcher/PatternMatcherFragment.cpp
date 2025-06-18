@@ -3,6 +3,7 @@
 #include <ranges>
 #include <algorithm>
 #include <format>
+#include <cassert>
 
 namespace fragments
 {
@@ -19,8 +20,8 @@ namespace fragments
 
 	std::optional<PatternMatch> LiteralFragment::Match(const CharRange aRange)
 	{
-		if (std::ranges::starts_with(myLiteral, aRange))
-			return Success(aRange.substr(0, std::ranges::size(myLiteral)));
+		if (std::ranges::starts_with(aRange, myLiteral))
+			return Success(CharRange(std::ranges::begin(aRange), std::ranges::begin(aRange) + std::ranges::size(myLiteral)));
 
 		return {};
 	}
@@ -48,20 +49,29 @@ namespace fragments
 
 	std::optional<PatternMatch> SequenceFragment::Match(const CharRange aRange)
 	{
+		assert(myResolvedParts.size() == myParts.size() && "Using unresolved fragment");
+
+		std::vector<PatternMatch> subMatches;
+
 		auto start = std::ranges::begin(aRange);
+		auto end = std::ranges::end(aRange);
 		auto at = start;
+
 		for (IPatternMatcherFragment* fragment : myResolvedParts)
 		{
-			CharRange subRange(at, std::ranges::end(aRange));
+			CharRange remaining(at, end);
 
-			std::optional<PatternMatch> result = fragment->Match(subRange);
+			std::optional<PatternMatch> result = fragment->Match(remaining);
 
 			if (!result)
 				return {};
 
-			at = std::ranges::end(result->myRange);
+			subMatches.push_back(*result);
+
+			at += std::ranges::size(result->myRange);
 		}
-		return Success(CharRange(start, at));
+
+		return Success(CharRange(start, at), subMatches);
 	}
 
 	AlternativeFragment::AlternativeFragment(std::vector<std::string> aParts)
@@ -86,6 +96,8 @@ namespace fragments
 
 	std::optional<PatternMatch> AlternativeFragment::Match(const CharRange aRange)
 	{
+		assert(myResolvedParts.size() == myParts.size() && "Using unresolved fragment");
+
 		for (IPatternMatcherFragment* fragment : myResolvedParts)
 		{
 			std::optional<PatternMatch> result = fragment->Match(aRange);
@@ -93,14 +105,18 @@ namespace fragments
 			if (!result)
 				continue;
 
-			return result;
+			return Success(result->myRange, { *result });
 		}
 		return {};
 	}
-
 }
 
 PatternMatch IPatternMatcherFragment::Success(const CharRange aRange)
 {
 	return { this, aRange, {} };
+}
+
+PatternMatch IPatternMatcherFragment::Success(const CharRange aRange, std::vector<PatternMatch> aSubMatches)
+{
+	return { this, aRange, aSubMatches };
 }

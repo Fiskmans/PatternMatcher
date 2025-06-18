@@ -17,6 +17,8 @@ Expect PatternMatcher::Resolve()
 		if (!result)
 			return result;
 	}
+
+	return {};
 }
 
 std::optional<PatternMatch> PatternMatcher::Match(std::string aRoot, CharRange aRange)

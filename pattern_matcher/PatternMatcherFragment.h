@@ -18,7 +18,7 @@ struct PatternMatch
 	IPatternMatcherFragment* myPattern;
 	CharRange myRange;
 
-	std::vector<std::unique_ptr<PatternMatch>> mySubMatches;
+	std::vector<PatternMatch> mySubMatches;
 };
 
 class IPatternMatcherFragment
@@ -31,6 +31,7 @@ public:
 	virtual Expect Resolve(const FragmentCollection& aFragments) = 0;
 
 	PatternMatch Success(const CharRange aRange);
+	PatternMatch Success(const CharRange aRange, std::vector<PatternMatch> aSubMatches);
 };
 
 
