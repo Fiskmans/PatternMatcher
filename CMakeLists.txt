@@ -15,11 +15,18 @@ FetchContent_Declare(
   GIT_TAG        v3.0.1
 )
 
+FetchContent_Declare(
+  JSONTestSuite
+  GIT_REPOSITORY https://github.com/nst/JSONTestSuite.git
+  GIT_TAG        1ef36fa01286573e846ac449e8683f8833c5b26a
+)
+
 add_subdirectory(pattern_matcher)
 
 if(FISK_BUILD_TESTING)
 
 	FetchContent_MakeAvailable(Catch2)
+	FetchContent_MakeAvailable(JSONTestSuite)
 
 	add_subdirectory(catch_pattern_matcher)
 endif()

@@ -8,7 +8,8 @@
 namespace fragments
 {
 
-	LiteralFragment::LiteralFragment(std::string aLiteral)
+	LiteralFragment::LiteralFragment(std::string aName, std::string aLiteral)
+		: IPatternMatcherFragment(aName)
 	{
 		myLiteral = aLiteral;
 	}
@@ -27,7 +28,8 @@ namespace fragments
 	}
 
 	
-	SequenceFragment::SequenceFragment(std::vector<std::string> aParts)
+	SequenceFragment::SequenceFragment(std::string aName, std::vector<std::string> aParts)
+		: IPatternMatcherFragment(aName)
 	{
 		myParts = aParts;
 	}
@@ -74,7 +76,8 @@ namespace fragments
 		return Success(CharRange(start, at), subMatches);
 	}
 
-	AlternativeFragment::AlternativeFragment(std::vector<std::string> aParts)
+	AlternativeFragment::AlternativeFragment(std::string aName, std::vector<std::string> aParts)
+		: IPatternMatcherFragment(aName)
 	{
 		myParts = aParts;
 	}
@@ -109,6 +112,71 @@ namespace fragments
 		}
 		return {};
 	}
+
+	RepeatFragment::RepeatFragment(std::string aName, std::string aBase, RepeatCount aCount)
+		: IPatternMatcherFragment(aName)
+		, myBase(aBase)
+		, myCount(aCount)
+		, myResolved(nullptr)
+	{
+	}
+
+	Expect RepeatFragment::Resolve(const FragmentCollection& aFragments)
+	{
+		auto it = aFragments.find(myBase);
+		if (it == aFragments.end())
+			return std::unexpected(std::format("Expected {} to be a valid fragment", myBase));
+
+		myResolved = it->second.get();
+
+		return {};
+	}
+
+	std::optional<PatternMatch> RepeatFragment::Match(const CharRange aRange)
+	{
+		assert(myResolved && "Using unresolved fragment");
+
+		std::vector<PatternMatch> subMatches;
+
+		auto start = std::ranges::begin(aRange);
+		auto end = std::ranges::end(aRange);
+		auto at = start;
+
+		for (size_t i = 0; i < myCount.myMin; i++)
+		{
+			CharRange remaining(at, end);
+
+			std::optional<PatternMatch> result = myResolved->Match(remaining);
+
+			if (!result)
+				return {};
+
+			subMatches.push_back(*result);
+
+			at += std::ranges::size(result->myRange);
+		}
+
+		for (size_t i = myCount.myMin; i < myCount.myMax; i++)
+		{
+			CharRange remaining(at, end);
+
+			std::optional<PatternMatch> result = myResolved->Match(remaining);
+
+			if (!result)
+				return Success(CharRange(start, at), subMatches);
+
+			subMatches.push_back(*result);
+
+			at += std::ranges::size(result->myRange);
+		}
+
+		return Success(CharRange(start, at), subMatches);
+	}
+}
+
+IPatternMatcherFragment::IPatternMatcherFragment(std::string aName)
+	: myName(aName)
+{
 }
 
 PatternMatch IPatternMatcherFragment::Success(const CharRange aRange)

@@ -8,6 +8,8 @@
 #include <memory>
 #include <expected>
 
+#include "pattern_matcher/RepeatCount.h"
+
 class IPatternMatcherFragment;
 using CharRange = std::string_view;
 using FragmentCollection = std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>>;
@@ -24,6 +26,8 @@ struct PatternMatch
 class IPatternMatcherFragment
 {
 public:
+	IPatternMatcherFragment(std::string aName);
+
 	std::string myName;
 
 	virtual ~IPatternMatcherFragment() = default;
@@ -34,13 +38,13 @@ public:
 	PatternMatch Success(const CharRange aRange, std::vector<PatternMatch> aSubMatches);
 };
 
-
 namespace fragments
 {
 	class LiteralFragment : public IPatternMatcherFragment
 	{
 	public:
-		LiteralFragment(std::string aLiteral);
+		LiteralFragment(std::string aName, std::string aLiteral);
+
 		Expect Resolve(const FragmentCollection& aFragments) override;
 
 		std::optional<PatternMatch> Match(const CharRange aRange) override;
@@ -49,10 +53,26 @@ namespace fragments
 		std::string myLiteral;
 	};
 
+	class RepeatFragment : public IPatternMatcherFragment
+	{
+	public:
+		RepeatFragment(std::string aName, std::string aBase, RepeatCount aCount);
+
+		Expect Resolve(const FragmentCollection& aFragments) override;
+
+		std::optional<PatternMatch> Match(const CharRange aRange) override;
+
+	private:
+		RepeatCount myCount;
+		IPatternMatcherFragment* myResolved;
+		std::string myBase;
+	};
+
 	class SequenceFragment : public IPatternMatcherFragment
 	{
 	public:
-		SequenceFragment(std::vector<std::string> aParts);
+		SequenceFragment(std::string aName, std::vector<std::string> aParts);
+
 		Expect Resolve(const FragmentCollection& aFragments) override;
 
 		std::optional<PatternMatch> Match(const CharRange aRange) override;
@@ -65,7 +85,8 @@ namespace fragments
 	class AlternativeFragment : public IPatternMatcherFragment
 	{
 	public:
-		AlternativeFragment(std::vector<std::string> aParts);
+		AlternativeFragment(std::string aName, std::vector<std::string> aParts);
+
 		Expect Resolve(const FragmentCollection& aFragments) override;
 
 		std::optional<PatternMatch> Match(const CharRange aRange) override;

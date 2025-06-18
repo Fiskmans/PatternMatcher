@@ -10,6 +10,8 @@ class PatternMatcher
 {
 public:
 
+	PatternMatcher() = default;
+
 	void AddFragment(std::unique_ptr<IPatternMatcherFragment>&& aFragment);
 
 	Expect Resolve();

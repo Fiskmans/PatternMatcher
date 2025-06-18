@@ -1,7 +1,12 @@
+
+list(APPEND Files PatternBuilder.h)
+list(APPEND Files PatternBuilder.cpp)
 list(APPEND Files PatternMatcher.h)
 list(APPEND Files PatternMatcher.cpp)
 list(APPEND Files PatternMatcherFragment.h)
 list(APPEND Files PatternMatcherFragment.cpp)
+list(APPEND Files RepeatCount.h)
+list(APPEND Files RepeatCount.cpp)
 
 add_library(pattern_matcher ${Files} )
 

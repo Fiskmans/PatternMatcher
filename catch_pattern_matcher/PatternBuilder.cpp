@@ -1,25 +1,20 @@
 
-
 #include <catch2/catch_all.hpp>
 
-#include "pattern_matcher/PatternMatcher.h"
+#include "pattern_matcher/PatternBuilder.h"
 
-#include <string>
-
-TEST_CASE("pattern_matcher::pattern_matcher::basic", "")
+TEST_CASE("pattern_matcher::builder::basic")
 {
-	PatternMatcher matcher;
+	PatternBuilder builder;
 
-	using namespace std::string_literals;
+	builder.Add("a") = "a";
+	builder.Add("b") = "b";
+	builder.Add("c") = "c";
 
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("a", "a"));
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("b", "b"));
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("c", "c"));
+	builder.Add("any") || "a" || "b" || "c";
+	builder.Add("all") && "a" && "b" && "c";
 
-	matcher.AddFragment(std::make_unique<fragments::AlternativeFragment>("any", std::vector<std::string>{ "a", "b", "c" }));
-	matcher.AddFragment(std::make_unique<fragments::SequenceFragment>("all", std::vector<std::string>{ "a", "b", "c" }));
-
-	REQUIRE(matcher.Resolve());
+	PatternMatcher matcher = builder.Finalize();
 
 	REQUIRE(matcher.Match("a", "a"));
 	REQUIRE(matcher.Match("a", "a")->myRange == "a");
