@@ -26,7 +26,7 @@ TEST_CASE("FiniteStateMachineFragment", "[patterns]")
 		patterns["a"] = std::make_unique<fragments::LiteralFragment>("a");
 		patterns["b"] = std::make_unique<fragments::LiteralFragment>("b");
 
-		sequence.Resolve(patterns);
+		REQUIRE(sequence.Resolve(patterns));
 
 		REQUIRE(!sequence.Match("a"));
 		REQUIRE(sequence.Match("ab")->myPattern == &sequence);
@@ -53,7 +53,7 @@ TEST_CASE("FiniteStateMachineFragment", "[patterns]")
 		patterns["a"] = std::make_unique<fragments::LiteralFragment>("a");
 		patterns["b"] = std::make_unique<fragments::LiteralFragment>("b");
 
-		alternative.Resolve(patterns);
+		REQUIRE(alternative.Resolve(patterns));
 
 		REQUIRE(alternative.Match("a"));
 		REQUIRE(alternative.Match("a")->myPattern == &alternative);
