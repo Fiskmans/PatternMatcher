@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+  <Type Name="MatchContext">
+    <DisplayString>{myPattern->myName} => {myRange}</DisplayString>
+  </Type>
+  <Type Name="IPatternMatcherFragment">
+    <DisplayString>{myName}</DisplayString>
+  </Type>
+  <Type Name="MatchSuccess">
+    <DisplayString>{myPattern->myName}: {myRange._Mydata,[myRange._Mysize]na}</DisplayString>
+    <Expand>
+        <Item Name="[Pattern]">myPattern,nrna</Item>
+        <Item Name="[Range]">myRange,nrna</Item>
+        <ArrayItems>
+            <Size>mySubMatches._Mypair._Myval2._Mylast - mySubMatches._Mypair._Myval2._Myfirst</Size>
+            <ValuePointer>mySubMatches._Mypair._Myval2._Myfirst,nr</ValuePointer>
+        </ArrayItems>
+    </Expand>
+  </Type>
+  <Type Name="Result">
+    <DisplayString Condition="myResult._Which==0"># {myResult._Head}</DisplayString>
+    <DisplayString Condition="myResult._Which==1">x</DisplayString>
+    <DisplayString Condition="myResult._Which==2">  {myResult._Tail._Tail._Head}</DisplayString>
+    <DisplayString Condition="myResult._Which==3">None</DisplayString>
+    <Expand>
+        <Item Name="[Result]" Condition="myResult._Which==0">myResult._Head,nr</Item>
+    </Expand>
+  </Type>
+</AutoVisualizer>

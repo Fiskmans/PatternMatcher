@@ -108,13 +108,14 @@ TEST_CASE("pattern_matcher::integration::json", "")
 	builder.Add("string-content") = { "string-char", { 0, RepeatCount::Unbounded } };
 	builder.Add("string") && "quote" && "string-content" && "quote";
 
-	builder.Add("value-raw") || "string" || "number" || "object" || "array" || "true" || "false" || "null";
+	builder.Add("value-raw") || "array" || "object" || "true" || "false" || "null" || "string" || "number";
 	builder.Add("value") && "whitespace" && "value-raw" && "whitespace";
 
-	builder.Add("array-cont") && "," && "value";
+	builder.Add("array-cont") && "whitespace" && "," && "whitespace" && "value-raw";
 	builder.Add("array-continuations") = { "array-cont", { 0, RepeatCount::Unbounded } };
-	builder.Add("array-items") && "value" && "array-continuations";
-	builder.Add("array") && "[" && "whitespace" && "array-items" && "whitespace" && "]";
+	builder.Add("array-items") && "value-raw" && "array-continuations" && "whitespace";
+	builder.Add("array-content") || "array-items" || "";
+	builder.Add("array") && "[" && "whitespace" && "array-content" && "]";
 
 	builder.Add("object-item") && "whitespace" && "string" && ":" && "value";
 
@@ -135,7 +136,11 @@ TEST_CASE("pattern_matcher::integration::json", "")
 	std::string all;
 	std::string line;
 	while (std::getline(in, line))
+	{
+		if (!all.empty())
+			all += "\n";
 		all += line;
+	}
 
 	char type = file.filename().c_str()[0];
 
@@ -147,7 +152,7 @@ TEST_CASE("pattern_matcher::integration::json", "")
 		break;
 	case 'n':
 		{
-			std::optional<PatternMatch> match = matcher.Match("value", all);
+			std::optional<MatchSuccess> match = matcher.Match("value", all);
 			REQUIRE((!match || match->myRange != all));
 		}
 		break;

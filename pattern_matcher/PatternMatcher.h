@@ -16,7 +16,7 @@ public:
 
 	Expect Resolve();
 
-	std::optional<PatternMatch> Match(std::string aRoot, CharRange aRange);
+	std::optional<MatchSuccess> Match(std::string aRoot, CharRange aRange, size_t aMaxDepth = 2'048);
 
 private:
 	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>> myFragments;

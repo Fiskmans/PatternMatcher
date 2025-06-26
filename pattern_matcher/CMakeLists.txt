@@ -7,6 +7,7 @@ list(APPEND Files PatternMatcherFragment.h)
 list(APPEND Files PatternMatcherFragment.cpp)
 list(APPEND Files RepeatCount.h)
 list(APPEND Files RepeatCount.cpp)
+list(APPEND Files pattern_matcher.natvis)
 
 add_library(pattern_matcher ${Files} )
 
