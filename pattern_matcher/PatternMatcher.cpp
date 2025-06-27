@@ -22,11 +22,13 @@ Expect PatternMatcher::Resolve()
 	return {};
 }
 
-std::optional<MatchSuccess> PatternMatcher::Match(std::string aRoot, CharRange aRange, size_t aMaxDepth)
+std::optional<MatchSuccess> PatternMatcher::Match(std::string aRoot, CharRange aRange, size_t aMaxDepth, size_t aMaxSteps)
 {
 	auto it = myFragments.find(aRoot);
 	if (it == myFragments.end())
 		return {};
+
+	size_t steps = 0;
 
 	std::stack<MatchContext> contexts;
 
@@ -60,6 +62,9 @@ std::optional<MatchSuccess> PatternMatcher::Match(std::string aRoot, CharRange a
 			assert(false);
 			break;
 		}
+
+		if (steps++ >= aMaxSteps)
+			return {};
 	}
 
 	switch (lastResult.GetType())

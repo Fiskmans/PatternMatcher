@@ -31,6 +31,7 @@ public:
 		Builder& operator ||(std::string aPart);
 
 		void NotOf(std::string aChars);
+		void OneOf(std::string aChars);
 		
 
 		std::unique_ptr<IPatternMatcherFragment> Bake();

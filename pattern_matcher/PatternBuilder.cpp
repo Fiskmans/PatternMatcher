@@ -49,23 +49,24 @@ void PatternBuilder::Builder::NotOf(std::string aChars)
 
 	myMode = Mode::Alternative;
 
-	for (char c = 0; c < std::numeric_limits<char>::max(); c++)
+	for (int c = std::numeric_limits<char>::min(); c <= std::numeric_limits<char>::max(); c++)
 	{
-		if (!isprint(c))
-			continue;
-
-		if (isspace(c))
-			continue;
-
-		if (c == '\n')
-			continue;
-		if (c == '\r')
-			continue;
-
 		if (aChars.find(c) == std::string::npos)
 		{
-			myParts.push_back(std::string(1, c));
+			myParts.push_back("char-" + std::to_string(c));
 		}
+	}
+}
+
+void PatternBuilder::Builder::OneOf(std::string aChars)
+{
+	assert(myMode == Mode::Unkown || myMode == Mode::Alternative);
+
+	myMode = Mode::Alternative;
+
+	for (char c : aChars)
+	{
+		myParts.push_back("char-" + std::to_string(c));
 	}
 }
 

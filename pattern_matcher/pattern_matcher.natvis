@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
   <Type Name="MatchContext">
-    <DisplayString>{myPattern->myName} => {myRange}</DisplayString>
+    <DisplayString>{myPattern->myName,nasb} => {myRange,nasb}</DisplayString>
   </Type>
   <Type Name="IPatternMatcherFragment">
     <DisplayString>{myName}</DisplayString>
   </Type>
   <Type Name="MatchSuccess">
-    <DisplayString>{myPattern->myName}: {myRange._Mydata,[myRange._Mysize]na}</DisplayString>
+    <DisplayString>{myPattern->myName,nasb}: {myRange._Mydata,[myRange._Mysize]nasb}</DisplayString>
     <Expand>
         <Item Name="[Pattern]">myPattern,nrna</Item>
         <Item Name="[Range]">myRange,nrna</Item>

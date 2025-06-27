@@ -14,6 +14,7 @@
 class IPatternMatcherFragment;
 using CharRange = std::string_view;
 using CharIterator = decltype(std::ranges::begin(std::declval<CharRange>()));
+using CharType = std::iterator_traits<CharIterator>::value_type;
 
 using FragmentCollection = std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>>;
 using Expect = std::expected<void, std::string>;
@@ -82,6 +83,23 @@ public:
 	MatchContext InitializeContext(const CharRange aRange);
 };
 
+template<typename T>
+class Indexable
+{
+public:
+	static constexpr bool IsIndexable = false;
+	static constexpr size_t IndexCount = 0;
+};
+
+template<>
+class Indexable<char>
+{
+public:
+	static constexpr bool IsIndexable = true;
+	static constexpr size_t Count = 0x100;
+	static size_t ConvertToIndex(char aValue) { return (size_t)aValue - std::numeric_limits<char>::min(); }
+};
+
 namespace fragments
 {
 	class LiteralFragment : public IPatternMatcherFragment
@@ -92,7 +110,6 @@ namespace fragments
 		Expect Resolve(const FragmentCollection& aFragments) override;
 		Result Resume(MatchContext& aContext, Result aResult) override;
 
-	private:
 		std::string myLiteral;
 	};
 
@@ -118,6 +135,15 @@ namespace fragments
 		Result Resume(MatchContext& aContext, Result aResult) override;
 
 	private:
+		struct Empty {};
+		using Indexable = Indexable<CharType>;
+
+		template<class V>
+		using IfIndexable = std::conditional_t<Indexable::IsIndexable, V, Empty>;
+
+		IfIndexable<IPatternMatcherFragment* [Indexable::Count]> myQuickSearchLUT;
+		IfIndexable<size_t> myQuickSearchSize;
+
 		std::vector<std::string> myParts;
 		std::vector<IPatternMatcherFragment*> myResolvedParts;
 	};

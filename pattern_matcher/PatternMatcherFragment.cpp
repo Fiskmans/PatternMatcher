@@ -47,6 +47,7 @@ namespace fragments
 
 			myResolvedParts.push_back(resolved->second.get());
 		}
+
 		return {};
 	}
 
@@ -102,12 +103,59 @@ namespace fragments
 
 			myResolvedParts.push_back(resolved->second.get());
 		}
+
+		if constexpr (Indexable::IsIndexable)
+		{
+			for (IPatternMatcherFragment*& fragment : myQuickSearchLUT)
+			{
+				fragment = nullptr;
+			}
+			myQuickSearchSize = 0;
+			for (IPatternMatcherFragment* fragment : myResolvedParts)
+			{
+				LiteralFragment* lit = dynamic_cast<LiteralFragment*>(fragment);
+
+				if (!lit)
+					break;
+				
+				if (std::ranges::size(lit->myLiteral) != 1)
+					break;
+
+				size_t c = Indexable::ConvertToIndex(*std::ranges::begin(lit->myLiteral));
+
+				myQuickSearchLUT[c] = fragment;
+				myQuickSearchSize++;
+			}
+		}
+
 		return {};
 	}
 
 	Result AlternativeFragment::Resume(MatchContext& aContext, Result aResult)
 	{
 		assert(myResolvedParts.size() == myParts.size() && "Using unresolved fragment");
+
+		if constexpr (Indexable::IsIndexable)
+		{
+			if (aContext.myIndex == 0 && myQuickSearchSize > 0)
+			{
+				if (std::ranges::size(aContext.myRange) > 0)
+				{
+					size_t c = Indexable::ConvertToIndex(*aContext.myAt);
+
+					IPatternMatcherFragment* fragment = myQuickSearchLUT[c];
+
+					if (fragment)
+					{
+						CharRange match{aContext.myAt, aContext.myAt + 1};
+						return Success(match, { MatchSuccess{fragment, match } });
+					}
+				}
+
+				aContext.myIndex += myQuickSearchSize;
+			}
+
+		}
 
 		switch (aResult.GetType())
 		{
