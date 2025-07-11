@@ -23,7 +23,7 @@ public:
 	class Builder
 	{
 	public:
-		Builder() = default;
+		Builder();
 
 		void operator=(std::string aLiteral);
 		void operator=(builder_parts::Repeat aRepeat);
@@ -34,8 +34,9 @@ public:
 		void OneOf(std::string aChars);
 		
 
-		std::unique_ptr<IPatternMatcherFragment<>> Bake();
+		std::unique_ptr<IPatternMatcherFragment<>> Bake(std::string aKey);
 
+	private:
 		enum class Mode
 		{
 			Unkown,
@@ -46,8 +47,7 @@ public:
 		};
 
 		RepeatCount myCount;
-		std::string myName;
-		Mode myMode = Mode::Unkown;
+		Mode myMode;
 		std::vector<std::string> myParts;
 	};
 

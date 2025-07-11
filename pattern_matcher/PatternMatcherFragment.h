@@ -90,14 +90,10 @@ struct Result
 	{
 		switch (myResult.index())
 		{
-		case 0:
-			return MatchResultType::Success;
-		case 1:
-			return MatchResultType::Failure;
-		case 2:
-			return MatchResultType::InProgress;
-		case 3:
-			return MatchResultType::None;
+		case 0: return MatchResultType::Success;
+		case 1: return MatchResultType::Failure;
+		case 2: return MatchResultType::InProgress;
+		case 3: return MatchResultType::None;
 		}
 
 		std::unreachable();
@@ -357,7 +353,7 @@ namespace fragments
 	private:
 
 		struct Empty {};
-		using Indexable = Indexable<IPatternMatcherFragment<Key, TokenRange>::TokenType>;
+		using Indexable = Indexable<typename IPatternMatcherFragment<Key, TokenRange>::TokenType>;
 
 		template<class V>
 		using IfIndexable = std::conditional_t<Indexable::IsIndexable, V, Empty>;
