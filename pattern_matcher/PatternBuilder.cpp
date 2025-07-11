@@ -70,7 +70,7 @@ void PatternBuilder::Builder::OneOf(std::string aChars)
 	}
 }
 
-std::unique_ptr<IPatternMatcherFragment> PatternBuilder::Builder::Bake()
+std::unique_ptr<IPatternMatcherFragment<>> PatternBuilder::Builder::Bake()
 {
 	switch (myMode)
 	{
@@ -80,16 +80,16 @@ std::unique_ptr<IPatternMatcherFragment> PatternBuilder::Builder::Bake()
 
 	case Mode::Literal:
 		assert(myParts.size() == 1);
-		return std::make_unique<fragments::LiteralFragment>(myName, myParts[0]);
+		return std::make_unique<fragments::LiteralFragment<>>(myName, myParts[0]);
 
 	case Mode::Sequence:
-		return std::make_unique<fragments::SequenceFragment>(myName, myParts);
+		return std::make_unique<fragments::SequenceFragment<>>(myName, myParts);
 
 	case Mode::Alternative:
-		return std::make_unique<fragments::AlternativeFragment>(myName, myParts);
+		return std::make_unique<fragments::AlternativeFragment<>>(myName, myParts);
 
 	case Mode::Repeat:
-		return std::make_unique<fragments::RepeatFragment>(myName, myParts[0], myCount);
+		return std::make_unique<fragments::RepeatFragment<>>(myName, myParts[0], myCount);
 	}
 
 	std::unreachable();
@@ -104,9 +104,9 @@ PatternBuilder::Builder& PatternBuilder::Add(std::string aKey)
 	return out;
 }
 
-PatternMatcher PatternBuilder::Finalize()
+PatternMatcher<std::string, std::string_view> PatternBuilder::Finalize()
 {
-	PatternMatcher matcher;
+	PatternMatcher<std::string, std::string_view> matcher;
 
 	for (auto& [ name, part ] : myParts)
 	{

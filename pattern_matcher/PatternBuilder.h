@@ -34,7 +34,7 @@ public:
 		void OneOf(std::string aChars);
 		
 
-		std::unique_ptr<IPatternMatcherFragment> Bake();
+		std::unique_ptr<IPatternMatcherFragment<>> Bake();
 
 		enum class Mode
 		{
@@ -53,7 +53,7 @@ public:
 
 	Builder& Add(std::string aKey);
 
-	PatternMatcher Finalize();
+	PatternMatcher<std::string, std::string_view> Finalize();
 
 private:
 	std::unordered_map<std::string, Builder> myParts;

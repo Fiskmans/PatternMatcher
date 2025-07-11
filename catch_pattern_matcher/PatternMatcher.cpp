@@ -8,16 +8,16 @@
 
 TEST_CASE("pattern_matcher::pattern_matcher::basic", "")
 {
-	PatternMatcher matcher;
+	PatternMatcher<> matcher;
 
 	using namespace std::string_literals;
 
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("a", "a"));
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("b", "b"));
-	matcher.AddFragment(std::make_unique<fragments::LiteralFragment>("c", "c"));
+	matcher.AddLiteral("a", "a");
+	matcher.AddLiteral("b", "b");
+	matcher.AddLiteral("c", "c");
 
-	matcher.AddFragment(std::make_unique<fragments::AlternativeFragment>("any", std::vector<std::string>{ "a", "b", "c" }));
-	matcher.AddFragment(std::make_unique<fragments::SequenceFragment>("all", std::vector<std::string>{ "a", "b", "c" }));
+	matcher.AddFragment(std::make_unique<fragments::AlternativeFragment<>>("any", std::vector<std::string>{ "a", "b", "c" }));
+	matcher.AddFragment(std::make_unique<fragments::SequenceFragment<>>("all", std::vector<std::string>{ "a", "b", "c" }));
 
 	REQUIRE(matcher.Resolve());
 

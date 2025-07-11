@@ -5,9 +5,9 @@
 
 #include <stack>
 
-std::optional<MatchSuccess> Match(IPatternMatcherFragment& aFragment, CharRange aText)
+std::optional<MatchSuccess<>> Match(IPatternMatcherFragment<>& aFragment, std::string_view aText)
 {
-	std::stack<MatchContext> contexts;
+	std::stack<MatchContext<>> contexts;
 
 	contexts.push(aFragment.Match(aText));
 
@@ -15,22 +15,22 @@ std::optional<MatchSuccess> Match(IPatternMatcherFragment& aFragment, CharRange 
 
 	while (!contexts.empty())
 	{
-		MatchContext& ctx = contexts.top();
+		MatchContext<>& ctx = contexts.top();
 
 		lastResult = ctx.myPattern->Resume(ctx, lastResult);
 
 		switch (lastResult.GetType())
 		{
-		case Result::Type::Success:
-		case Result::Type::Failure:
+		case MatchResultType::Success:
+		case MatchResultType::Failure:
 			contexts.pop();
 			break;
 
-		case Result::Type::InProgress:
+		case MatchResultType::InProgress:
 			contexts.push(lastResult.Context());
 			lastResult = {};
 			break;
-		case Result::Type::None:
+		case MatchResultType::None:
 			assert(false);
 			break;
 		}
@@ -38,14 +38,14 @@ std::optional<MatchSuccess> Match(IPatternMatcherFragment& aFragment, CharRange 
 
 	switch (lastResult.GetType())
 	{
-	case Result::Type::Success:
+	case MatchResultType::Success:
 		return lastResult.Success();
 
-	case Result::Type::Failure:
+	case MatchResultType::Failure:
 		return {};
 
-	case Result::Type::None:
-	case Result::Type::InProgress:
+	case MatchResultType::None:
+	case MatchResultType::InProgress:
 		assert(false);
 		break;
 	}
@@ -55,9 +55,9 @@ std::optional<MatchSuccess> Match(IPatternMatcherFragment& aFragment, CharRange 
 
 TEST_CASE("pattern_matcher::fragments::LiteralFragment", "[fragments]")
 {
-	fragments::LiteralFragment literal("a", "a");
+	fragments::LiteralFragment<> literal("a", "a");
 
-	MatchContext start = literal.Match("a");
+	MatchContext<> start = literal.Match("a");
 
 	{
 		REQUIRE(*start.myAt == 'a');
@@ -68,10 +68,10 @@ TEST_CASE("pattern_matcher::fragments::LiteralFragment", "[fragments]")
 	}
 
 	{
-		MatchContext ctx = start;
-		Result res = literal.Resume(ctx, MatchFailure{});
+		MatchContext<> ctx = start;
+		Result<> res = literal.Resume(ctx, MatchFailure{});
 
-		REQUIRE(res.GetType() == Result::Type::Success);
+		REQUIRE(res.GetType() == MatchResultType::Success);
 		REQUIRE(res.Success().myPattern == &literal);
 	}
 
@@ -83,12 +83,12 @@ TEST_CASE("pattern_matcher::fragments::LiteralFragment", "[fragments]")
 
 TEST_CASE("pattern_matcher::fragments::SequenceFragment", "[fragments]")
 {
-	fragments::SequenceFragment sequence("sequence", { "a", "b" });
+	fragments::SequenceFragment<> sequence("sequence", { "a", "b" });
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>> patterns;
+	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment>("a", "a");
-	patterns["b"] = std::make_unique<fragments::LiteralFragment>("b", "b");
+	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
+	patterns["b"] = std::make_unique<fragments::LiteralFragment<>>("b", "b");
 
 	REQUIRE(sequence.Resolve(patterns));
 
@@ -110,12 +110,12 @@ TEST_CASE("pattern_matcher::fragments::SequenceFragment", "[fragments]")
 
 TEST_CASE("pattern_matcher::fragments::AlternativeFragment", "[fragments]")
 {
-	fragments::AlternativeFragment alternative("alt", { "a", "b" });
+	fragments::AlternativeFragment<> alternative("alt", { "a", "b" });
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>> patterns;
+	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment>("a", "a");
-	patterns["b"] = std::make_unique<fragments::LiteralFragment>("b", "b");
+	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
+	patterns["b"] = std::make_unique<fragments::LiteralFragment<>>("b", "b");
 
 	REQUIRE(alternative.Resolve(patterns));
 
@@ -140,11 +140,11 @@ TEST_CASE("pattern_matcher::fragments::AlternativeFragment", "[fragments]")
 
 TEST_CASE("pattern_matcher::fragments::RepeatFragment", "[fragments]")
 {
-	fragments::RepeatFragment repeat("rep", "a", RepeatCount( 1, 3 ));
+	fragments::RepeatFragment<> repeat("rep", "a", RepeatCount( 1, 3 ));
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment>> patterns;
+	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment>("a", "a");
+	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
 
 	REQUIRE(repeat.Resolve(patterns));
 

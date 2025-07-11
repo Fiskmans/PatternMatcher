@@ -163,12 +163,13 @@ TEST_CASE("pattern_matcher::integration::json", "")
 		break;
 	case 'n':
 		{
-			std::optional<MatchSuccess> match = matcher.Match("value", all);
+			std::optional<MatchSuccess<std::string, std::string_view>> match = matcher.Match("value", all);
 			REQUIRE((!match || match->myRange != all));
 		}
 		break;
 	case 'y':
-		REQUIRE(matcher.Match("value", all));
+		auto result = matcher.Match("value", all);
+		REQUIRE(result);
 		break;
 	}
 }
