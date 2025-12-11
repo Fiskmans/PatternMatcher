@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <format>
 #include <cassert>
+#include <utility>
 
 #include "pattern_matcher/RepeatCount.h"
 
@@ -172,10 +173,25 @@ namespace fragments
 		{
 			IteratorType<TokenRange> start = std::ranges::begin(aContext.myRange);
 
-			if (std::ranges::starts_with(aContext.myRange, myLiteral))
-				return MatchSuccess<Key, TokenRange>{ this, { start, start + std::ranges::size(myLiteral) }};
+			IteratorType<TokenRange> at = std::ranges::begin(aContext.myRange);
+			auto leftEnd = std::ranges::end(aContext.myRange);
 
-			return MatchFailure{};
+			auto right = std::ranges::begin(myLiteral);
+			auto rightEnd = std::ranges::end(myLiteral);
+
+			while (right != rightEnd)
+			{
+				if (at == leftEnd)
+					return MatchFailure{};
+				
+				if (*at != *right)
+					return MatchFailure{};
+
+				++at;
+				++right;
+			}
+			
+			return MatchSuccess<Key, TokenRange>{ this, { start, at }};
 		}
 
 		LiteralRange myLiteral;

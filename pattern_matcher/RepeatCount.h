@@ -2,15 +2,16 @@
 #pragma once
 
 #include <limits>
+#include <cstddef>
 
 struct RepeatCount
 {
 	RepeatCount() = default;
-	RepeatCount(size_t aFixed);
-	RepeatCount(size_t aMin, size_t aMax);
+	RepeatCount(std::size_t aFixed);
+	RepeatCount(std::size_t aMin, std::size_t aMax);
 
-	static constexpr size_t Unbounded = std::numeric_limits<size_t>::max();
+	static constexpr std::size_t Unbounded = std::numeric_limits<std::size_t>::max();
 
-	size_t myMin;
-	size_t myMax;
+	std::size_t myMin;
+	std::size_t myMax;
 };
