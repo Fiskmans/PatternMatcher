@@ -1,450 +1,302 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <string_view>
-#include <optional>
-#include <unordered_map>
-#include <memory>
-#include <expected>
-#include <variant>
-#include <ranges>
 #include <algorithm>
-#include <format>
 #include <cassert>
+#include <expected>
+#include <format>
+#include <memory>
+#include <optional>
+#include <ranges>
+#include <string>
+#include <string_view>
+#include <unordered_map>
 #include <utility>
+#include <variant>
+#include <vector>
 
+#include "pattern_matcher/Concepts.h"
+#include "pattern_matcher/PatternMatchingTypes.h"
 #include "pattern_matcher/RepeatCount.h"
 
-using Expect = std::expected<void, std::string>;
-
-template<typename T>
-class Indexable
+enum class PatternMatcherFragmentType
 {
+    Literal,
+    Repeat,
+    Sequence,
+    Alternative
+};
+
+template<class Key = std::string, std::ranges::range LiteralType = std::string>
+class PatternMatcherFragment {
 public:
-	static constexpr bool IsIndexable = false;
-	static constexpr size_t Count = 0;
-};
+    PatternMatcherFragment() = default;
+    PatternMatcherFragment(const LiteralType& aLiteral)
+        : myType(PatternMatcherFragmentType::Literal), myLiteral(aLiteral)
+    {
+    }
+    PatternMatcherFragment(Key aKey, RepeatCount aCount)
+        : myType(PatternMatcherFragmentType::Repeat), mySubFragments({{aKey, nullptr}}), myCount(aCount)
+    {
+    }
+    PatternMatcherFragment(PatternMatcherFragmentType aType, const std::vector<Key> aKeys) : myType(aType)
+    {
+        assert(aType == PatternMatcherFragmentType::Sequence || aType == PatternMatcherFragmentType::Alternative);
 
-template<>
-class Indexable<char>
-{
-public:
-	static constexpr bool IsIndexable = true;
-	static constexpr size_t Count = 0x100;
-	static size_t ConvertToIndex(char aValue) { return (size_t)aValue - std::numeric_limits<char>::min(); }
-};
+        for (const Key& key : aKeys) mySubFragments.push_back({key, nullptr});
+    }
 
-template<class Key, std::ranges::range TokenRange>
-class IPatternMatcherFragment;
+    PatternMatcherFragment(const PatternMatcherFragment&)            = default;
+    PatternMatcherFragment& operator=(const PatternMatcherFragment&) = default;
 
-template<class TokenRange>
-using IteratorType = decltype(std::ranges::begin(std::declval<TokenRange>()));
+    PatternMatcherFragment(PatternMatcherFragment&&)            = default;
+    PatternMatcherFragment& operator=(PatternMatcherFragment&&) = default;
 
-enum class MatchResultType
-{
-	Success,
-	Failure,
-	InProgress,
-	None
-};
+    ~PatternMatcherFragment() = default;
 
-struct MatchFailure {};
-struct MatchNone {};
+    template<KeyedCollection<Key, PatternMatcherFragment&> Collection>
+    Expect Resolve(const Collection& aFragments)
+    {
+        for (Mapping& mapping : mySubFragments)
+        {
+            auto resolved = aFragments.find(mapping.myKey);
 
-template<
-	class Key = std::string,
-	std::ranges::range TokenRange = std::string_view>
-struct MatchSuccess
-{
-	IPatternMatcherFragment<Key, TokenRange>* myPattern;
-	TokenRange myRange;
+            if (resolved == std::end(aFragments))
+                return std::unexpected(std::format("Expected {} to be a valid fragment", mapping.myKey));
 
-	std::vector<MatchSuccess> mySubMatches;
-};
+            mapping.myFragment = &resolved->second;
+        }
 
-template<
-	class Key = std::string,
-	std::ranges::range TokenRange = std::string_view>
-struct MatchContext
-{
-	IPatternMatcherFragment<Key, TokenRange>* myPattern;
+        /*
+        TODO: Figure out how to do this with the new structure
 
-	TokenRange myRange;
-	IteratorType<TokenRange> myAt;
-	int myIndex;
+        if constexpr (Indexable::IsIndexable)
+        {
+                for (Super*& fragment : myQuickSearchLUT)
+                {
+                        fragment = nullptr;
+                }
+                myQuickSearchSize = 0;
+                for (Super* fragment : myResolvedParts)
+                {
+                        LiteralFragment<Key, TokenRange>* lit =
+        dynamic_cast<LiteralFragment<Key, TokenRange>*>(fragment);
 
-	std::vector<MatchSuccess<Key, TokenRange>> mySubMatches;
-};
+                        if (!lit)
+                                break;
 
-template<
-	class Key = std::string,
-	std::ranges::range TokenRange = std::string_view>
-struct Result
-{
-	Result(MatchSuccess<Key, TokenRange>	aResult) : myResult(aResult) {}
-	Result(MatchFailure						aResult) : myResult(aResult) {}
-	Result(MatchContext<Key, TokenRange>	aResult) : myResult(aResult) {}
-	Result() : myResult(MatchNone{}) {}
+                        if (std::ranges::size(lit->myLiteral) != 1)
+                                break;
 
-	MatchResultType GetType()
-	{
-		switch (myResult.index())
-		{
-		case 0: return MatchResultType::Success;
-		case 1: return MatchResultType::Failure;
-		case 2: return MatchResultType::InProgress;
-		case 3: return MatchResultType::None;
-		}
+                        size_t c =
+        Indexable::ConvertToIndex(*std::ranges::begin(lit->myLiteral));
 
-		std::unreachable();
-	}
+                        myQuickSearchLUT[c] = fragment;
+                        myQuickSearchSize++;
+                }
+        }
+        */
 
-	MatchSuccess<Key, TokenRange>& Success()
-	{
-		return std::get<MatchSuccess<Key, TokenRange>>(myResult);
-	}
+        return {};
+    }
 
-	MatchContext<Key, TokenRange>& Context()
-	{
-		return std::get<MatchContext<Key, TokenRange>>(myResult);
-	}
+    template<RangeComparable<LiteralType> TokenRange>
+    MatchContext<Key, LiteralType, TokenRange> BeginMatch(TokenRange aRange) const
+    {
+        return BeginMatch<TokenRange>(std::ranges::begin(aRange), std::ranges::end(aRange));
+    }
+
+    template<RangeComparable<LiteralType> TokenRange>
+    MatchContext<Key, LiteralType, TokenRange> BeginMatch(std::ranges::iterator_t<TokenRange> aBegin,
+                                                          std::ranges::sentinel_t<TokenRange> aEnd) const
+    {
+        MatchContext<Key, LiteralType, TokenRange> ctx;
+
+        ctx.myPattern = this;
+        ctx.myBegin   = aBegin;
+        ctx.myAt      = aBegin;
+        ctx.myEnd     = aEnd;
+        ctx.myIndex   = 0;
+
+        return ctx;
+    }
+
+    MatchContext<Key, LiteralType, std::string_view> BeginMatch(const char* aRange)
+    {
+        return BeginMatch<std::string_view>(aRange);
+    }
+
+    template<RangeComparable<LiteralType> TokenRange>
+    Result<Key, LiteralType, TokenRange> ResumeMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
+                                                     const Result<Key, LiteralType, TokenRange>& aResult) const
+    {
+        switch (myType)
+        {
+            case PatternMatcherFragmentType::Literal:
+                return LiteralMatch(aContext, aResult);
+            case PatternMatcherFragmentType::Sequence:
+                return SequenceMatch(aContext, aResult);
+            case PatternMatcherFragmentType::Alternative:
+                return AlternativeMatch(aContext, aResult);
+            case PatternMatcherFragmentType::Repeat:
+                return RepeatMatch(aContext, aResult);
+        }
+
+        assert(false);
+        std::unreachable();
+    }
 
 private:
-	std::variant<MatchSuccess<Key, TokenRange>, MatchFailure, MatchContext<Key, TokenRange>, MatchNone> myResult;
+    template<RangeComparable<LiteralType> TokenRange>
+    Result<Key, LiteralType, TokenRange> LiteralMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
+                                                      const Result<Key, LiteralType, TokenRange>& aResult) const
+    {
+        std::ranges::iterator_t<TokenRange> at = aContext.myAt;
+
+        std::ranges::iterator_t<const LiteralType> right    = std::ranges::begin(myLiteral);
+        std::ranges::sentinel_t<const LiteralType> rightEnd = std::ranges::end(myLiteral);
+
+        while (right != rightEnd)
+        {
+            if (at == aContext.myEnd)
+                return MatchFailure{};
+
+            if (*at != *right)
+                return MatchFailure{};
+
+            ++at;
+            ++right;
+        }
+
+        return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myAt, at};
+    }
+
+    template<RangeComparable<LiteralType> TokenRange>
+    Result<Key, LiteralType, TokenRange> SequenceMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
+                                                       const Result<Key, LiteralType, TokenRange>& aResult) const
+    {
+        switch (aResult.GetType())
+        {
+            case MatchResultType::Failure:
+                return MatchFailure{};
+            case MatchResultType::Success:
+                aContext.mySubMatches.push_back(aResult.Success());
+                aContext.myAt = aResult.Success().myEnd;
+                break;
+            case MatchResultType::None:
+                break;
+            case MatchResultType::InProgress:
+            default:
+                assert(false);
+                std::unreachable();
+                break;
+        }
+
+        if (aContext.myIndex == mySubFragments.size())
+            return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
+                                                              aContext.mySubMatches};
+
+        return mySubFragments[aContext.myIndex++].myFragment->template BeginMatch<TokenRange>(aContext.myAt,
+                                                                                              aContext.myEnd);
+    }
+
+    template<RangeComparable<LiteralType> TokenRange>
+    Result<Key, LiteralType, TokenRange> AlternativeMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
+                                                          const Result<Key, LiteralType, TokenRange>& aResult) const
+    {
+        /*
+        TODO: Figure out how to do this with the new structure
+
+        if constexpr (Indexable::IsIndexable)
+        {
+                if (aContext.myIndex == 0 && myQuickSearchSize > 0)
+                {
+                        if (std::ranges::size(aContext.myRange) > 0)
+                        {
+                                size_t c =
+        Indexable::ConvertToIndex(*aContext.myAt);
+
+                                IPatternMatcherFragment<Key, TokenRange>*
+        fragment = myQuickSearchLUT[c];
+
+                                if (fragment)
+                                {
+                                        TokenRange tokens { aContext.myAt,
+        aContext.myAt + 1 }; return MatchSuccess<Key, TokenRange> { this,
+        tokens, { MatchSuccess<Key, TokenRange>{ fragment, tokens } } };
+                                }
+                        }
+
+                aContext.myIndex += myQuickSearchSize;
+                }
+
+        }
+        */
+
+        switch (aResult.GetType())
+        {
+            case MatchResultType::Failure:
+            case MatchResultType::None:
+                break;
+            case MatchResultType::Success:
+                return MatchSuccess<Key, LiteralType, TokenRange>{
+                    this, aResult.Success().myBegin, aResult.Success().myEnd, {aResult.Success()}};
+            case MatchResultType::InProgress:
+            default:
+                assert(false);
+                std::unreachable();
+                break;
+        }
+
+        if (aContext.myIndex == mySubFragments.size())
+            return MatchFailure{};
+
+        return mySubFragments[aContext.myIndex++].myFragment->template BeginMatch<TokenRange>(aContext.myBegin,
+                                                                                              aContext.myEnd);
+    }
+
+    template<RangeComparable<LiteralType> TokenRange>
+    Result<Key, LiteralType, TokenRange> RepeatMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
+                                                     const Result<Key, LiteralType, TokenRange>& aResult) const
+    {
+        switch (aResult.GetType())
+        {
+            case MatchResultType::Failure:
+
+                if (aContext.myIndex > myCount.myMin)
+                    return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
+                                                                      aContext.mySubMatches};
+
+                return MatchFailure{};
+            case MatchResultType::Success:
+                aContext.mySubMatches.push_back(aResult.Success());
+                aContext.myAt = aResult.Success().myEnd;
+                break;
+            case MatchResultType::None:
+                break;
+            case MatchResultType::InProgress:
+            default:
+                assert(false);
+                std::unreachable();
+                break;
+        }
+
+        if (aContext.myIndex == myCount.myMax)
+            return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
+                                                              aContext.mySubMatches};
+
+        aContext.myIndex++;
+
+        return mySubFragments[0].myFragment->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
+    }
+
+private:
+    struct Mapping {
+        Key myKey;
+        const PatternMatcherFragment* myFragment = nullptr;
+    };
+
+    PatternMatcherFragmentType myType = PatternMatcherFragmentType::Literal;
+    LiteralType myLiteral;
+    RepeatCount myCount;
+    std::vector<Mapping> mySubFragments;
 };
-
-template<
-	class Key = std::string, 
-	std::ranges::range TokenRange = std::string_view>
-class IPatternMatcherFragment
-{
-public:
-	using TokenType = std::iterator_traits<IteratorType<TokenRange>>::value_type;
-	using Collection = std::unordered_map<Key, std::unique_ptr<IPatternMatcherFragment<Key, TokenRange>>>;
-
-	IPatternMatcherFragment(Key aKey)
-		: myKey(aKey)
-	{
-	}
-
-	virtual ~IPatternMatcherFragment() = default;
-	virtual Expect Resolve(const Collection& aFragments) = 0;
-	virtual Result<Key, TokenRange> Resume(MatchContext<Key, TokenRange>& aContext, Result<Key, TokenRange> aResult) = 0;
-
-	virtual MatchContext<Key, TokenRange> Match(const TokenRange aRange)
-	{
-		MatchContext<Key, TokenRange> ctx;
-
-		ctx.myPattern = this;
-		ctx.myAt = std::ranges::begin(aRange);
-		ctx.myRange = aRange;
-		ctx.myIndex = 0;
-
-		return ctx;
-	}
-
-	Key myKey;
-};
-
-namespace fragments
-{
-	template<
-		class Key = std::string, 
-		std::ranges::range TokenRange = std::string_view, 
-		std::ranges::range LiteralRange = std::string>
-	class LiteralFragment : public IPatternMatcherFragment<Key, TokenRange>
-	{
-	public:
-		using Collection = IPatternMatcherFragment<Key, TokenRange>::Collection;
-
-		LiteralFragment(Key aKey, LiteralRange aLiteral)
-			: IPatternMatcherFragment<Key,TokenRange>(aKey)
-			, myLiteral(aLiteral)
-		{
-		}
-
-		Expect Resolve(const Collection& aFragments) override
-		{
-			return {};
-		}
-
-		Result<Key, TokenRange> Resume(MatchContext<Key, TokenRange>& aContext, Result<Key, TokenRange> aResult) override
-		{
-			IteratorType<TokenRange> start = std::ranges::begin(aContext.myRange);
-
-			IteratorType<TokenRange> at = std::ranges::begin(aContext.myRange);
-			auto leftEnd = std::ranges::end(aContext.myRange);
-
-			auto right = std::ranges::begin(myLiteral);
-			auto rightEnd = std::ranges::end(myLiteral);
-
-			while (right != rightEnd)
-			{
-				if (at == leftEnd)
-					return MatchFailure{};
-				
-				if (*at != *right)
-					return MatchFailure{};
-
-				++at;
-				++right;
-			}
-			
-			return MatchSuccess<Key, TokenRange>{ this, { start, at }};
-		}
-
-		LiteralRange myLiteral;
-	};
-
-	template<
-		class Key = std::string, 
-		std::ranges::range TokenRange = std::string_view>
-	class SequenceFragment : public IPatternMatcherFragment<Key, TokenRange>
-	{
-	public:
-		using Super = IPatternMatcherFragment<Key, TokenRange>;
-
-		SequenceFragment(Key aKey, std::vector<Key> aParts)
-			: IPatternMatcherFragment<Key, TokenRange>(aKey)
-			, myParts(aParts)
-		{
-		}
-
-		Expect Resolve(const Super::Collection& aFragments) override
-		{
-			myResolvedParts.reserve(myParts.size());
-			for (std::string& part : myParts)
-			{
-				auto resolved = aFragments.find(part);
-
-				if (resolved == std::end(aFragments))
-					return std::unexpected(std::format("Expected {} to be a valid fragment", part));
-
-				myResolvedParts.push_back(resolved->second.get());
-			}
-
-			return {};
-		}
-
-		Result<Key, TokenRange> Resume(MatchContext<Key, TokenRange>& aContext, Result<Key, TokenRange> aResult) override
-		{
-			assert(myResolvedParts.size() == myParts.size() && "Using unresolved fragment");
-
-			std::vector<MatchSuccess<Key, TokenRange>> subMatches;
-
-			switch (aResult.GetType())
-			{
-			case MatchResultType::Failure:
-				return MatchFailure{};
-			case MatchResultType::Success:
-				aContext.mySubMatches.push_back(aResult.Success());
-				aContext.myAt += std::ranges::size(aResult.Success().myRange);
-				break;
-			case MatchResultType::None:
-				break;
-			case MatchResultType::InProgress:
-			default:
-				assert(false);
-				std::unreachable();
-				break;
-			}
-
-			IteratorType<TokenRange> start = std::ranges::begin(aContext.myRange);
-			auto end = std::ranges::end(aContext.myRange);
-
-			if (aContext.myIndex == myResolvedParts.size())
-				return MatchSuccess<Key, TokenRange>{ this, { start, aContext.myAt }, aContext.mySubMatches};
-
-			TokenRange remaining{ aContext.myAt, end };
-
-			return myResolvedParts[aContext.myIndex++]->Match(remaining);
-		}
-
-	private:
-		std::vector<Key> myParts;
-		std::vector<IPatternMatcherFragment<Key,TokenRange>*> myResolvedParts;
-	};
-
-	template<
-		class Key = std::string, 
-		std::ranges::range TokenRange = std::string_view>
-	class AlternativeFragment : public IPatternMatcherFragment<Key, TokenRange>
-	{
-	public:
-		using Super = IPatternMatcherFragment<Key, TokenRange>;
-
-		AlternativeFragment(Key aKey, std::vector<Key> aParts)
-			: Super(aKey)
-			, myParts(aParts)
-		{
-		}
-
-		Expect Resolve(const Super::Collection& aFragments) override
-		{
-			myResolvedParts.reserve(myParts.size());
-			for (std::string& part : myParts)
-			{
-				auto resolved = aFragments.find(part);
-
-				if (resolved == std::end(aFragments))
-					return std::unexpected(std::format("Expected {} to be a valid fragment", part));
-
-				myResolvedParts.push_back(resolved->second.get());
-			}
-
-			if constexpr (Indexable::IsIndexable)
-			{
-				for (Super*& fragment : myQuickSearchLUT)
-				{
-					fragment = nullptr;
-				}
-				myQuickSearchSize = 0;
-				for (Super* fragment : myResolvedParts)
-				{
-					LiteralFragment<Key, TokenRange>* lit = dynamic_cast<LiteralFragment<Key, TokenRange>*>(fragment);
-
-					if (!lit)
-						break;
-
-					if (std::ranges::size(lit->myLiteral) != 1)
-						break;
-
-					size_t c = Indexable::ConvertToIndex(*std::ranges::begin(lit->myLiteral));
-
-					myQuickSearchLUT[c] = fragment;
-					myQuickSearchSize++;
-				}
-			}
-
-			return {};
-		}
-
-		Result<Key, TokenRange> Resume(MatchContext<Key, TokenRange>& aContext, Result<Key, TokenRange> aResult) override
-		{
-			assert(myResolvedParts.size() == myParts.size() && "Using unresolved fragment");
-
-			if constexpr (Indexable::IsIndexable)
-			{
-				if (aContext.myIndex == 0 && myQuickSearchSize > 0)
-				{
-					if (std::ranges::size(aContext.myRange) > 0)
-					{
-						size_t c = Indexable::ConvertToIndex(*aContext.myAt);
-
-						IPatternMatcherFragment<Key, TokenRange>* fragment = myQuickSearchLUT[c];
-
-						if (fragment)
-						{
-							TokenRange tokens { aContext.myAt, aContext.myAt + 1 };
-							return MatchSuccess<Key, TokenRange> { this, tokens, { MatchSuccess<Key, TokenRange>{ fragment, tokens } } };
-						}
-					}
-
-					aContext.myIndex += myQuickSearchSize;
-				}
-
-			}
-
-			switch (aResult.GetType())
-			{
-			case MatchResultType::Failure:
-			case MatchResultType::None:
-				break;
-			case MatchResultType::Success:
-				return MatchSuccess<Key, TokenRange>{ this, aResult.Success().myRange, { aResult.Success() } };
-			case MatchResultType::InProgress:
-			default:
-				assert(false);
-				std::unreachable();
-				break;
-			}
-
-			if (aContext.myIndex == myResolvedParts.size())
-				return MatchFailure{};
-
-			return myResolvedParts[aContext.myIndex++]->Match(aContext.myRange);
-		}
-
-	private:
-
-		struct Empty {};
-		using Indexable = Indexable<typename IPatternMatcherFragment<Key, TokenRange>::TokenType>;
-
-		template<class V>
-		using IfIndexable = std::conditional_t<Indexable::IsIndexable, V, Empty>;
-
-		IfIndexable<IPatternMatcherFragment<Key,TokenRange>* [Indexable::Count]> myQuickSearchLUT;
-		IfIndexable<size_t> myQuickSearchSize;
-
-		std::vector<Key> myParts;
-		std::vector<IPatternMatcherFragment<Key,TokenRange>*> myResolvedParts;
-	};
-
-	template<
-		class Key = std::string, 
-		std::ranges::range TokenRange = std::string_view>
-	class RepeatFragment : public IPatternMatcherFragment<Key, TokenRange>
-	{
-	public:
-		using Collection = IPatternMatcherFragment<Key, TokenRange>::Collection;
-
-		RepeatFragment(Key aKey, Key aBase, RepeatCount aCount)
-			: IPatternMatcherFragment<Key, TokenRange>(aKey)
-			, myBase(aBase)
-			, myCount(aCount)
-			, myResolved(nullptr)
-		{
-		}
-
-		Expect Resolve(const Collection& aFragments) override
-		{
-			auto it = aFragments.find(myBase);
-			if (it == aFragments.end())
-				return std::unexpected(std::format("Expected {} to be a valid fragment", myBase));
-
-			myResolved = it->second.get();
-
-			return {};
-		}
-
-		Result<Key, TokenRange> Resume(MatchContext<Key, TokenRange>& aContext, Result<Key, TokenRange> aResult) override
-		{
-			assert(myResolved && "Using unresolved fragment");
-
-			switch (aResult.GetType())
-			{
-			case MatchResultType::Failure:
-				if (aContext.myIndex > myCount.myMin)
-					return MatchSuccess<Key, TokenRange>{ this, { std::ranges::begin(aContext.myRange), aContext.myAt }, aContext.mySubMatches};
-				return MatchFailure{};
-			case MatchResultType::Success:
-				aContext.mySubMatches.push_back(aResult.Success());
-				aContext.myAt += std::ranges::size(aResult.Success().myRange);
-				break;
-			case MatchResultType::None:
-				break;
-			case MatchResultType::InProgress:
-			default:
-				assert(false);
-				std::unreachable();
-				break;
-			}
-
-			if (aContext.myIndex == myCount.myMax)
-				return MatchSuccess<Key, TokenRange>{ this, { std::ranges::begin(aContext.myRange), aContext.myAt }, aContext.mySubMatches };
-
-			aContext.myIndex++;
-
-			auto end = std::ranges::end(aContext.myRange);
-			TokenRange remaining(aContext.myAt, end);
-
-			return myResolved->Match(remaining);
-		}
-
-	private:
-		RepeatCount myCount;
-		IPatternMatcherFragment<Key,TokenRange>* myResolved;
-		Key myBase;
-	};
-}

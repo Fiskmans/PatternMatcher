@@ -1,194 +1,194 @@
 
 #include <catch2/catch_all.hpp>
+#include <stack>
 
 #include "pattern_matcher/PatternMatcher.h"
 
-#include <stack>
-
-std::optional<MatchSuccess<>> Match(IPatternMatcherFragment<>& aFragment, std::string_view aText)
+std::optional<MatchSuccess<std::string, std::string, std::string_view>> Match(PatternMatcherFragment<>& aFragment,
+                                                                              std::string_view aText)
 {
-	std::stack<MatchContext<>> contexts;
+    std::stack<MatchContext<std::string, std::string, std::string_view>> contexts;
 
-	contexts.push(aFragment.Match(aText));
+    contexts.push(aFragment.BeginMatch(aText));
 
-	Result lastResult;
+    Result<std::string, std::string, std::string_view> lastResult;
 
-	while (!contexts.empty())
-	{
-		MatchContext<>& ctx = contexts.top();
+    while (!contexts.empty())
+    {
+        MatchContext<std::string, std::string, std::string_view>& ctx = contexts.top();
 
-		lastResult = ctx.myPattern->Resume(ctx, lastResult);
+        lastResult = ctx.myPattern->ResumeMatch(ctx, lastResult);
 
-		switch (lastResult.GetType())
-		{
-		case MatchResultType::Success:
-		case MatchResultType::Failure:
-			contexts.pop();
-			break;
+        switch (lastResult.GetType())
+        {
+            case MatchResultType::Success:
+            case MatchResultType::Failure:
+                contexts.pop();
+                break;
 
-		case MatchResultType::InProgress:
-			contexts.push(lastResult.Context());
-			lastResult = {};
-			break;
-		case MatchResultType::None:
-			assert(false);
-			break;
-		}
-	}
+            case MatchResultType::InProgress:
+                contexts.push(lastResult.Context());
+                lastResult = {};
+                break;
+            case MatchResultType::None:
+                assert(false);
+                break;
+        }
+    }
 
-	switch (lastResult.GetType())
-	{
-	case MatchResultType::Success:
-		return lastResult.Success();
+    switch (lastResult.GetType())
+    {
+        case MatchResultType::Success:
+            return lastResult.Success();
 
-	case MatchResultType::Failure:
-		return {};
+        case MatchResultType::Failure:
+            return {};
 
-	case MatchResultType::None:
-	case MatchResultType::InProgress:
-		assert(false);
-		break;
-	}
+        case MatchResultType::None:
+        case MatchResultType::InProgress:
+            assert(false);
+            break;
+    }
 
-	std::unreachable();
+    std::unreachable();
 }
 
-TEST_CASE("pattern_matcher::fragments::LiteralFragment", "[fragments]")
+TEST_CASE("pattern_matcher::PatternMatcherFragment::Literal", "[fragments]")
 {
-	fragments::LiteralFragment<> literal("a", "a");
+    PatternMatcherFragment<> literal("a");
 
-	MatchContext<> start = literal.Match("a");
+    auto start = literal.BeginMatch("a");
 
-	{
-		REQUIRE(*start.myAt == 'a');
-		REQUIRE(start.myIndex == 0);
-		REQUIRE(start.myPattern == &literal);
-		REQUIRE(start.myRange == "a");
-		REQUIRE(start.mySubMatches.empty());
-	}
+    {
+        REQUIRE(*start.myAt == 'a');
+        REQUIRE(start.myIndex == 0);
+        REQUIRE(start.myPattern == &literal);
+        REQUIRE(start == "a");
+        REQUIRE(start.mySubMatches.empty());
+    }
 
-	{
-		MatchContext<> ctx = start;
-		Result<> res = literal.Resume(ctx, MatchFailure{});
+    {
+        auto ctx = start;
+        auto res = literal.ResumeMatch(ctx, {});
 
-		REQUIRE(res.GetType() == MatchResultType::Success);
-		REQUIRE(res.Success().myPattern == &literal);
-	}
+        REQUIRE(res.GetType() == MatchResultType::Success);
+        REQUIRE(res.Success().myPattern == &literal);
+    }
 
-	REQUIRE(Match(literal, "ab"));
-	REQUIRE(Match(literal, "abc"));
-	REQUIRE(Match(literal, "abc")->mySubMatches.empty());
-	REQUIRE(Match(literal, "abc")->myRange == "a");
+    REQUIRE(Match(literal, "ab"));
+    REQUIRE(Match(literal, "abc"));
+    REQUIRE(Match(literal, "abc")->mySubMatches.empty());
+    REQUIRE(*Match(literal, "abc") == "a");
 }
 
-TEST_CASE("pattern_matcher::fragments::SequenceFragment", "[fragments]")
+TEST_CASE("pattern_matcher::PatternMatcherFragment::Sequence", "[fragments]")
 {
-	fragments::SequenceFragment<> sequence("sequence", { "a", "b" });
+    PatternMatcherFragment<> sequence(PatternMatcherFragmentType::Sequence, {"a", "b"});
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
+    std::unordered_map<std::string, PatternMatcherFragment<>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
-	patterns["b"] = std::make_unique<fragments::LiteralFragment<>>("b", "b");
+    patterns["a"] = PatternMatcherFragment<>("a");
+    patterns["b"] = PatternMatcherFragment<>("b");
 
-	REQUIRE(sequence.Resolve(patterns));
+    REQUIRE(sequence.Resolve(patterns));
 
-	REQUIRE(!Match(sequence, "a"));
-	REQUIRE(Match(sequence, "ab")->myPattern == &sequence);
-	REQUIRE(Match(sequence, "ab")->myRange == "ab");
-	REQUIRE(Match(sequence, "ab")->mySubMatches.size() == 2);
-	REQUIRE(Match(sequence, "ab")->mySubMatches[0].myPattern == patterns["a"].get());
-	REQUIRE(Match(sequence, "ab")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(sequence, "ab")->mySubMatches[0].mySubMatches.empty());
+    REQUIRE(!Match(sequence, "a"));
+    REQUIRE(Match(sequence, "ab")->myPattern == &sequence);
+    REQUIRE(*Match(sequence, "ab") == "ab");
+    REQUIRE(Match(sequence, "ab")->mySubMatches.size() == 2);
+    REQUIRE(Match(sequence, "ab")->mySubMatches[0].myPattern == &patterns["a"]);
+    REQUIRE(Match(sequence, "ab")->mySubMatches[0] == "a");
+    REQUIRE(Match(sequence, "ab")->mySubMatches[0].mySubMatches.empty());
 
-	REQUIRE(Match(sequence, "ab")->mySubMatches[1].myPattern == patterns["b"].get());
-	REQUIRE(Match(sequence, "ab")->mySubMatches[1].myRange == "b");
-	REQUIRE(Match(sequence, "ab")->mySubMatches[1].mySubMatches.empty());
+    REQUIRE(Match(sequence, "ab")->mySubMatches[1].myPattern == &patterns["b"]);
+    REQUIRE(Match(sequence, "ab")->mySubMatches[1] == "b");
+    REQUIRE(Match(sequence, "ab")->mySubMatches[1].mySubMatches.empty());
 
-	REQUIRE(Match(sequence, "abc"));
-	REQUIRE(Match(sequence, "abc")->myRange == "ab");
+    REQUIRE(Match(sequence, "abc"));
+    REQUIRE(*Match(sequence, "abc") == "ab");
 }
 
-TEST_CASE("pattern_matcher::fragments::AlternativeFragment", "[fragments]")
+TEST_CASE("pattern_matcher::PatternMatcherFragment::Alternative", "[fragments]")
 {
-	fragments::AlternativeFragment<> alternative("alt", { "a", "b" });
+    PatternMatcherFragment<> alternative(PatternMatcherFragmentType::Alternative, {"a", "b"});
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
+    std::unordered_map<std::string, PatternMatcherFragment<>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
-	patterns["b"] = std::make_unique<fragments::LiteralFragment<>>("b", "b");
+    patterns["a"] = PatternMatcherFragment<>("a");
+    patterns["b"] = PatternMatcherFragment<>("b");
 
-	REQUIRE(alternative.Resolve(patterns));
+    REQUIRE(alternative.Resolve(patterns));
 
-	REQUIRE(Match(alternative, "a"));
-	REQUIRE(Match(alternative, "a")->myPattern == &alternative);
-	REQUIRE(Match(alternative, "a")->myRange == "a");
-	REQUIRE(Match(alternative, "a")->mySubMatches.size() == 1);
-	REQUIRE(Match(alternative, "a")->mySubMatches[0].myPattern == patterns["a"].get());
-	REQUIRE(Match(alternative, "a")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(alternative, "a")->mySubMatches[0].mySubMatches.empty());
+    REQUIRE(Match(alternative, "a"));
+    REQUIRE(Match(alternative, "a")->myPattern == &alternative);
+    REQUIRE(*Match(alternative, "a") == "a");
+    REQUIRE(Match(alternative, "a")->mySubMatches.size() == 1);
+    REQUIRE(Match(alternative, "a")->mySubMatches[0].myPattern == &patterns["a"]);
+    REQUIRE(Match(alternative, "a")->mySubMatches[0] == "a");
+    REQUIRE(Match(alternative, "a")->mySubMatches[0].mySubMatches.empty());
 
-	REQUIRE(Match(alternative, "b"));
-	REQUIRE(Match(alternative, "b")->myPattern == &alternative);
-	REQUIRE(Match(alternative, "b")->myRange == "b");
-	REQUIRE(Match(alternative, "b")->mySubMatches.size() == 1);
-	REQUIRE(Match(alternative, "b")->mySubMatches[0].myPattern == patterns["b"].get());
-	REQUIRE(Match(alternative, "b")->mySubMatches[0].myRange == "b");
-	REQUIRE(Match(alternative, "b")->mySubMatches[0].mySubMatches.empty());
+    REQUIRE(Match(alternative, "b"));
+    REQUIRE(Match(alternative, "b")->myPattern == &alternative);
+    REQUIRE(*Match(alternative, "b") == "b");
+    REQUIRE(Match(alternative, "b")->mySubMatches.size() == 1);
+    REQUIRE(Match(alternative, "b")->mySubMatches[0].myPattern == &patterns["b"]);
+    REQUIRE(Match(alternative, "b")->mySubMatches[0] == "b");
+    REQUIRE(Match(alternative, "b")->mySubMatches[0].mySubMatches.empty());
 
-	REQUIRE(!Match(alternative, "c"));
+    REQUIRE(!Match(alternative, "c"));
 }
 
 TEST_CASE("pattern_matcher::fragments::RepeatFragment", "[fragments]")
 {
-	fragments::RepeatFragment<> repeat("rep", "a", RepeatCount( 1, 3 ));
+    PatternMatcherFragment<> repeat("a", RepeatCount(1, 3));
 
-	std::unordered_map<std::string, std::unique_ptr<IPatternMatcherFragment<>>> patterns;
+    std::unordered_map<std::string, PatternMatcherFragment<>> patterns;
 
-	patterns["a"] = std::make_unique<fragments::LiteralFragment<>>("a", "a");
+    patterns["a"] = PatternMatcherFragment<>("a");
 
-	REQUIRE(repeat.Resolve(patterns));
+    REQUIRE(repeat.Resolve(patterns));
 
-	REQUIRE(!Match(repeat, ""));
-	REQUIRE(!Match(repeat, "c"));
-	REQUIRE(Match(repeat, "a"));
-	REQUIRE(Match(repeat, "a")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "a")->myRange == "a");
-	REQUIRE(Match(repeat, "a")->mySubMatches.size() == 1);
-	REQUIRE(Match(repeat, "a")->mySubMatches[0].myRange == "a");
+    REQUIRE(!Match(repeat, ""));
+    REQUIRE(!Match(repeat, "c"));
+    REQUIRE(Match(repeat, "a"));
+    REQUIRE(Match(repeat, "a")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "a") == "a");
+    REQUIRE(Match(repeat, "a")->mySubMatches.size() == 1);
+    REQUIRE(Match(repeat, "a")->mySubMatches[0] == "a");
 
-	REQUIRE(Match(repeat, "ac"));
-	REQUIRE(Match(repeat, "ac")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "ac")->myRange == "a");
-	REQUIRE(Match(repeat, "ac")->mySubMatches.size() == 1);
-	REQUIRE(Match(repeat, "ac")->mySubMatches[0].myRange == "a");
+    REQUIRE(Match(repeat, "ac"));
+    REQUIRE(Match(repeat, "ac")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "ac") == "a");
+    REQUIRE(Match(repeat, "ac")->mySubMatches.size() == 1);
+    REQUIRE(Match(repeat, "ac")->mySubMatches[0] == "a");
 
-	REQUIRE(Match(repeat, "aa"));
-	REQUIRE(Match(repeat, "aa")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "aa")->myRange == "aa");
-	REQUIRE(Match(repeat, "aa")->mySubMatches.size() == 2);
-	REQUIRE(Match(repeat, "aa")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(repeat, "aa")->mySubMatches[1].myRange == "a");
+    REQUIRE(Match(repeat, "aa"));
+    REQUIRE(Match(repeat, "aa")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "aa") == "aa");
+    REQUIRE(Match(repeat, "aa")->mySubMatches.size() == 2);
+    REQUIRE(Match(repeat, "aa")->mySubMatches[0] == "a");
+    REQUIRE(Match(repeat, "aa")->mySubMatches[1] == "a");
 
-	REQUIRE(Match(repeat, "aac"));
-	REQUIRE(Match(repeat, "aac")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "aac")->myRange == "aa");
-	REQUIRE(Match(repeat, "aac")->mySubMatches.size() == 2);
-	REQUIRE(Match(repeat, "aac")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(repeat, "aac")->mySubMatches[1].myRange == "a");
+    REQUIRE(Match(repeat, "aac"));
+    REQUIRE(Match(repeat, "aac")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "aac") == "aa");
+    REQUIRE(Match(repeat, "aac")->mySubMatches.size() == 2);
+    REQUIRE(Match(repeat, "aac")->mySubMatches[0] == "a");
+    REQUIRE(Match(repeat, "aac")->mySubMatches[1] == "a");
 
-	REQUIRE(Match(repeat, "aaa"));
-	REQUIRE(Match(repeat, "aaa")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "aaa")->myRange == "aaa");
-	REQUIRE(Match(repeat, "aaa")->mySubMatches.size() == 3);
-	REQUIRE(Match(repeat, "aaa")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(repeat, "aaa")->mySubMatches[1].myRange == "a");
-	REQUIRE(Match(repeat, "aaa")->mySubMatches[2].myRange == "a");
+    REQUIRE(Match(repeat, "aaa"));
+    REQUIRE(Match(repeat, "aaa")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "aaa") == "aaa");
+    REQUIRE(Match(repeat, "aaa")->mySubMatches.size() == 3);
+    REQUIRE(Match(repeat, "aaa")->mySubMatches[0] == "a");
+    REQUIRE(Match(repeat, "aaa")->mySubMatches[1] == "a");
+    REQUIRE(Match(repeat, "aaa")->mySubMatches[2] == "a");
 
-	REQUIRE(Match(repeat, "aaaa"));
-	REQUIRE(Match(repeat, "aaaa")->myPattern == &repeat);
-	REQUIRE(Match(repeat, "aaaa")->myRange == "aaa");
-	REQUIRE(Match(repeat, "aaaa")->mySubMatches.size() == 3);
-	REQUIRE(Match(repeat, "aaaa")->mySubMatches[0].myRange == "a");
-	REQUIRE(Match(repeat, "aaaa")->mySubMatches[1].myRange == "a");
-	REQUIRE(Match(repeat, "aaaa")->mySubMatches[2].myRange == "a");
+    REQUIRE(Match(repeat, "aaaa"));
+    REQUIRE(Match(repeat, "aaaa")->myPattern == &repeat);
+    REQUIRE(*Match(repeat, "aaaa") == "aaa");
+    REQUIRE(Match(repeat, "aaaa")->mySubMatches.size() == 3);
+    REQUIRE(Match(repeat, "aaaa")->mySubMatches[0] == "a");
+    REQUIRE(Match(repeat, "aaaa")->mySubMatches[1] == "a");
+    REQUIRE(Match(repeat, "aaaa")->mySubMatches[2] == "a");
 }

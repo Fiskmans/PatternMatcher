@@ -1,60 +1,54 @@
 #pragma once
 
-#include <string>
 #include <memory>
+#include <string>
 #include <unordered_map>
 
 #include "pattern_matcher/PatternMatcher.h"
 #include "pattern_matcher/RepeatCount.h"
 
-namespace builder_parts
-{
-	struct Repeat
-	{
-		std::string myBase;
-		RepeatCount myCount;
-	};
-}
+namespace builder_parts {
+struct Repeat {
+    std::string myBase;
+    RepeatCount myCount;
+};
+}  // namespace builder_parts
 
-class PatternBuilder
-{
+class PatternBuilder {
 public:
+    class Builder {
+    public:
+        Builder();
 
-	class Builder
-	{
-	public:
-		Builder();
+        void operator=(std::string aLiteral);
+        void operator=(builder_parts::Repeat aRepeat);
+        Builder& operator&&(std::string aPart);
+        Builder& operator||(std::string aPart);
 
-		void operator=(std::string aLiteral);
-		void operator=(builder_parts::Repeat aRepeat);
-		Builder& operator &&(std::string aPart);
-		Builder& operator ||(std::string aPart);
+        void NotOf(std::string aChars);
+        void OneOf(std::string aChars);
 
-		void NotOf(std::string aChars);
-		void OneOf(std::string aChars);
-		
+        PatternMatcherFragment<> Bake();
 
-		std::unique_ptr<IPatternMatcherFragment<>> Bake(std::string aKey);
+    private:
+        enum class Mode
+        {
+            Unkown,
+            Literal,
+            Sequence,
+            Alternative,
+            Repeat
+        };
 
-	private:
-		enum class Mode
-		{
-			Unkown,
-			Literal,
-			Sequence,
-			Alternative,
-			Repeat
-		};
+        RepeatCount myCount;
+        Mode myMode;
+        std::vector<std::string> myParts;
+    };
 
-		RepeatCount myCount;
-		Mode myMode;
-		std::vector<std::string> myParts;
-	};
+    Builder& Add(std::string aKey);
 
-	Builder& Add(std::string aKey);
-
-	PatternMatcher<std::string, std::string_view> Finalize();
+    PatternMatcher<std::string, std::string> Finalize();
 
 private:
-	std::unordered_map<std::string, Builder> myParts;
+    std::unordered_map<std::string, Builder> myParts;
 };
