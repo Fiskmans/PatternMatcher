@@ -1,0 +1,7 @@
+{
+    "cmake.configureSettings": 
+    {  
+        "FISK_BUILD_TESTING": true
+    },
+    "editor.formatOnSave": true
+}
