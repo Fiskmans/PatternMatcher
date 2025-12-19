@@ -6,30 +6,46 @@
 #include <string>
 #include <unordered_map>
 
-#include "PatternMatcherFragment.h"
+#include "pattern_matcher/PatternMatcherFragment.h"
 
 template<class Key = std::string, std::ranges::range LiteralType = std::string>
 class PatternMatcher {
 public:
-    PatternMatcher() = default;
+    PatternMatcher()                                 = default;
+    PatternMatcher(const PatternMatcher&)            = delete;
+    PatternMatcher& operator=(const PatternMatcher&) = delete;
 
-    void AddFragment(Key aKey, PatternMatcherFragment<Key, LiteralType>&& aFragment)
+    PatternMatcher(PatternMatcher&&)            = default;
+    PatternMatcher& operator=(PatternMatcher&&) = default;
+
+    PatternMatcherFragment<LiteralType>& AddFragment(Key aKey)
     {
         assert(myFragments.find(aKey) == myFragments.end());
+        myFragments.emplace(aKey, PatternMatcherFragment<LiteralType>{});
 
-        myFragments.emplace(aKey, std::move(aFragment));
+        return *operator[](aKey);
     }
 
     void AddLiteral(Key aKey, LiteralType aLiteral)
     {
-        AddFragment(aKey, PatternMatcherFragment<Key, LiteralType>(aLiteral));
+        assert(myFragments.find(aKey) == myFragments.end());
+        myFragments.emplace(aKey, PatternMatcherFragment<LiteralType>(aLiteral));
+    }
+
+    PatternMatcherFragment<LiteralType>* operator[](Key aKey)
+    {
+        auto it = myFragments.find(aKey);
+        if (it == myFragments.end())
+            return nullptr;
+
+        return &it->second;
     }
 
     Expect Resolve()
     {
         for (auto& [name, fragment] : myFragments)
         {
-            Expect result = fragment.Resolve(myFragments);
+            Expect result = fragment.Resolve();
             if (!result)
                 return result;
         }
@@ -38,9 +54,8 @@ public:
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    std::optional<MatchSuccess<Key, LiteralType, TokenRange>> Match(Key aRoot, TokenRange aRange,
-                                                                    size_t aMaxDepth = 2'048,
-                                                                    size_t aMaxSteps = 4'294'967'296)
+    std::optional<MatchSuccess<LiteralType, TokenRange>> Match(Key aRoot, TokenRange aRange, size_t aMaxDepth = 2'048,
+                                                               size_t aMaxSteps = 4'294'967'296)
     {
         auto it = myFragments.find(aRoot);
         if (it == myFragments.end())
@@ -48,15 +63,17 @@ public:
 
         size_t steps = 0;
 
-        std::stack<MatchContext<Key, LiteralType, TokenRange>> contexts;
+        std::stack<MatchContext<LiteralType, TokenRange>> contexts;
 
-        contexts.push(it->second.BeginMatch(aRange));
+        contexts.push(it->second.template BeginMatch<TokenRange>(std::ranges::begin(aRange), std::ranges::end(aRange)));
 
-        Result<Key, LiteralType, TokenRange> lastResult;
+        Result<LiteralType, TokenRange> lastResult;
 
         while (!contexts.empty())
         {
-            MatchContext<Key, LiteralType, TokenRange>& ctx = contexts.top();
+            MatchContext<LiteralType, TokenRange>& ctx = contexts.top();
+
+            const PatternMatcherFragment<LiteralType>* fragment = ctx.myPattern;
 
             lastResult = ctx.myPattern->ResumeMatch(ctx, lastResult);
 
@@ -71,6 +88,7 @@ public:
                     if (contexts.size() >= aMaxDepth)
                     {
                         lastResult = MatchFailure{};
+                        break;
                     }
                     contexts.push(lastResult.Context());
                     lastResult = {};
@@ -101,13 +119,13 @@ public:
         std::unreachable();
     }
 
-    std::optional<MatchSuccess<Key, LiteralType, std::string_view>> Match(Key aRoot, const char* aRange,
-                                                                          size_t aMaxDepth = 2'048,
-                                                                          size_t aMaxSteps = 4'294'967'296)
+    std::optional<MatchSuccess<LiteralType, std::string_view>> Match(Key aRoot, const char* aRange,
+                                                                     size_t aMaxDepth = 2'048,
+                                                                     size_t aMaxSteps = 4'294'967'296)
     {
         return Match<std::string_view>(aRoot, aRange, aMaxDepth, aMaxSteps);
     }
 
 private:
-    std::unordered_map<Key, PatternMatcherFragment<Key, LiteralType>> myFragments;
+    std::unordered_map<Key, PatternMatcherFragment<LiteralType>> myFragments;
 };

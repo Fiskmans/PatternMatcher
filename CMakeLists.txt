@@ -28,6 +28,7 @@ if(FISK_BUILD_TESTING)
 
 	FetchContent_MakeAvailable(Catch2)
 	FetchContent_MakeAvailable(JSONTestSuite)
-
+	
+	include(CTest)
 	add_subdirectory(catch_pattern_matcher)
 endif()

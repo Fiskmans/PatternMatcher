@@ -1,6 +1,8 @@
 
 
+list(APPEND Files JSON.h)
 list(APPEND Files JSON.cpp)
+list(APPEND Files JSONRegression.cpp)
 list(APPEND Files PatternBuilder.cpp)
 list(APPEND Files PatternMatcher.cpp)
 list(APPEND Files PatternMatcherFragment.cpp)

@@ -26,7 +26,7 @@ enum class PatternMatcherFragmentType
     Alternative
 };
 
-template<class Key = std::string, std::ranges::range LiteralType = std::string>
+template<std::ranges::range LiteralType = std::string>
 class PatternMatcherFragment {
 public:
     PatternMatcherFragment() = default;
@@ -34,15 +34,14 @@ public:
         : myType(PatternMatcherFragmentType::Literal), myLiteral(aLiteral)
     {
     }
-    PatternMatcherFragment(Key aKey, RepeatCount aCount)
-        : myType(PatternMatcherFragmentType::Repeat), mySubFragments({{aKey, nullptr}}), myCount(aCount)
+    PatternMatcherFragment(PatternMatcherFragment* aSubPattern, RepeatCount aCount)
+        : myType(PatternMatcherFragmentType::Repeat), mySubFragments({aSubPattern}), myCount(aCount)
     {
     }
-    PatternMatcherFragment(PatternMatcherFragmentType aType, const std::vector<Key> aKeys) : myType(aType)
+    PatternMatcherFragment(PatternMatcherFragmentType aType, const std::vector<PatternMatcherFragment*> aFragments)
+        : myType(aType), mySubFragments(aFragments)
     {
         assert(aType == PatternMatcherFragmentType::Sequence || aType == PatternMatcherFragmentType::Alternative);
-
-        for (const Key& key : aKeys) mySubFragments.push_back({key, nullptr});
     }
 
     PatternMatcherFragment(const PatternMatcherFragment&)            = default;
@@ -53,63 +52,40 @@ public:
 
     ~PatternMatcherFragment() = default;
 
-    template<KeyedCollection<Key, PatternMatcherFragment&> Collection>
-    Expect Resolve(const Collection& aFragments)
+    Expect Resolve()
     {
-        for (Mapping& mapping : mySubFragments)
+        if (myType == PatternMatcherFragmentType::Alternative)
         {
-            auto resolved = aFragments.find(mapping.myKey);
-
-            if (resolved == std::end(aFragments))
-                return std::unexpected(std::format("Expected {} to be a valid fragment", mapping.myKey));
-
-            mapping.myFragment = &resolved->second;
-        }
-
-        /*
-        TODO: Figure out how to do this with the new structure
-
-        if constexpr (Indexable::IsIndexable)
-        {
-                for (Super*& fragment : myQuickSearchLUT)
+            if constexpr (decltype(myLUT)::IsIndexable)
+            {
+                for (const PatternMatcherFragment*& fragment : myLUT.myValues)
                 {
-                        fragment = nullptr;
+                    fragment = nullptr;
                 }
-                myQuickSearchSize = 0;
-                for (Super* fragment : myResolvedParts)
+
+                myLUTPortion = 0;
+                for (const PatternMatcherFragment* fragment : mySubFragments)
                 {
-                        LiteralFragment<Key, TokenRange>* lit =
-        dynamic_cast<LiteralFragment<Key, TokenRange>*>(fragment);
+                    if (fragment->myType != PatternMatcherFragmentType::Literal)
+                        break;
 
-                        if (!lit)
-                                break;
+                    if (std::ranges::size(fragment->myLiteral) != 1)
+                        break;
 
-                        if (std::ranges::size(lit->myLiteral) != 1)
-                                break;
-
-                        size_t c =
-        Indexable::ConvertToIndex(*std::ranges::begin(lit->myLiteral));
-
-                        myQuickSearchLUT[c] = fragment;
-                        myQuickSearchSize++;
+                    myLUT[*std::ranges::begin(fragment->myLiteral)] = fragment;
+                    myLUTPortion++;
                 }
+            }
         }
-        */
 
         return {};
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    MatchContext<Key, LiteralType, TokenRange> BeginMatch(TokenRange aRange) const
+    MatchContext<LiteralType, TokenRange> BeginMatch(std::ranges::iterator_t<TokenRange> aBegin,
+                                                     std::ranges::sentinel_t<TokenRange> aEnd) const
     {
-        return BeginMatch<TokenRange>(std::ranges::begin(aRange), std::ranges::end(aRange));
-    }
-
-    template<RangeComparable<LiteralType> TokenRange>
-    MatchContext<Key, LiteralType, TokenRange> BeginMatch(std::ranges::iterator_t<TokenRange> aBegin,
-                                                          std::ranges::sentinel_t<TokenRange> aEnd) const
-    {
-        MatchContext<Key, LiteralType, TokenRange> ctx;
+        MatchContext<LiteralType, TokenRange> ctx;
 
         ctx.myPattern = this;
         ctx.myBegin   = aBegin;
@@ -120,14 +96,15 @@ public:
         return ctx;
     }
 
-    MatchContext<Key, LiteralType, std::string_view> BeginMatch(const char* aRange)
+    MatchContext<LiteralType, std::string_view> BeginMatch(const char* aString) const
     {
-        return BeginMatch<std::string_view>(aRange);
+        std::string_view view(aString);
+        return BeginMatch<std::string_view>(std::ranges::begin(view), std::ranges::end(view));
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    Result<Key, LiteralType, TokenRange> ResumeMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
-                                                     const Result<Key, LiteralType, TokenRange>& aResult) const
+    Result<LiteralType, TokenRange> ResumeMatch(MatchContext<LiteralType, TokenRange>& aContext,
+                                                const Result<LiteralType, TokenRange>& aResult) const
     {
         switch (myType)
         {
@@ -147,8 +124,8 @@ public:
 
 private:
     template<RangeComparable<LiteralType> TokenRange>
-    Result<Key, LiteralType, TokenRange> LiteralMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
-                                                      const Result<Key, LiteralType, TokenRange>& aResult) const
+    Result<LiteralType, TokenRange> LiteralMatch(MatchContext<LiteralType, TokenRange>& aContext,
+                                                 const Result<LiteralType, TokenRange>& aResult) const
     {
         std::ranges::iterator_t<TokenRange> at = aContext.myAt;
 
@@ -167,12 +144,12 @@ private:
             ++right;
         }
 
-        return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myAt, at};
+        return MatchSuccess<LiteralType, TokenRange>{this, aContext.myAt, at};
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    Result<Key, LiteralType, TokenRange> SequenceMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
-                                                       const Result<Key, LiteralType, TokenRange>& aResult) const
+    Result<LiteralType, TokenRange> SequenceMatch(MatchContext<LiteralType, TokenRange>& aContext,
+                                                  const Result<LiteralType, TokenRange>& aResult) const
     {
         switch (aResult.GetType())
         {
@@ -192,45 +169,37 @@ private:
         }
 
         if (aContext.myIndex == mySubFragments.size())
-            return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
-                                                              aContext.mySubMatches};
+            return MatchSuccess<LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
 
-        return mySubFragments[aContext.myIndex++].myFragment->template BeginMatch<TokenRange>(aContext.myAt,
-                                                                                              aContext.myEnd);
+        return mySubFragments[aContext.myIndex++]->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    Result<Key, LiteralType, TokenRange> AlternativeMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
-                                                          const Result<Key, LiteralType, TokenRange>& aResult) const
+    Result<LiteralType, TokenRange> AlternativeMatch(MatchContext<LiteralType, TokenRange>& aContext,
+                                                     const Result<LiteralType, TokenRange>& aResult) const
     {
-        /*
-        TODO: Figure out how to do this with the new structure
-
-        if constexpr (Indexable::IsIndexable)
+        if constexpr (decltype(myLUT)::IsIndexable &&
+                      std::convertible_to<std::ranges::range_value_t<TokenRange>, LiteralValueType>)
         {
-                if (aContext.myIndex == 0 && myQuickSearchSize > 0)
+            if (aContext.myIndex == 0)
+            {
+                if (aContext.myBegin != aContext.myEnd)
                 {
-                        if (std::ranges::size(aContext.myRange) > 0)
-                        {
-                                size_t c =
-        Indexable::ConvertToIndex(*aContext.myAt);
+                    const PatternMatcherFragment* fragment = myLUT[LiteralValueType{*aContext.myAt}];
 
-                                IPatternMatcherFragment<Key, TokenRange>*
-        fragment = myQuickSearchLUT[c];
-
-                                if (fragment)
-                                {
-                                        TokenRange tokens { aContext.myAt,
-        aContext.myAt + 1 }; return MatchSuccess<Key, TokenRange> { this,
-        tokens, { MatchSuccess<Key, TokenRange>{ fragment, tokens } } };
-                                }
-                        }
-
-                aContext.myIndex += myQuickSearchSize;
+                    if (fragment)
+                    {
+                        return MatchSuccess<LiteralType, TokenRange>{
+                            this,
+                            aContext.myAt,
+                            aContext.myAt + 1,
+                            {MatchSuccess<LiteralType, TokenRange>{fragment, aContext.myAt, aContext.myAt + 1}}};
+                    }
                 }
 
+                aContext.myIndex += myLUTPortion;
+            }
         }
-        */
 
         switch (aResult.GetType())
         {
@@ -238,7 +207,7 @@ private:
             case MatchResultType::None:
                 break;
             case MatchResultType::Success:
-                return MatchSuccess<Key, LiteralType, TokenRange>{
+                return MatchSuccess<LiteralType, TokenRange>{
                     this, aResult.Success().myBegin, aResult.Success().myEnd, {aResult.Success()}};
             case MatchResultType::InProgress:
             default:
@@ -250,21 +219,20 @@ private:
         if (aContext.myIndex == mySubFragments.size())
             return MatchFailure{};
 
-        return mySubFragments[aContext.myIndex++].myFragment->template BeginMatch<TokenRange>(aContext.myBegin,
-                                                                                              aContext.myEnd);
+        return mySubFragments[aContext.myIndex++]->template BeginMatch<TokenRange>(aContext.myBegin, aContext.myEnd);
     }
 
     template<RangeComparable<LiteralType> TokenRange>
-    Result<Key, LiteralType, TokenRange> RepeatMatch(MatchContext<Key, LiteralType, TokenRange>& aContext,
-                                                     const Result<Key, LiteralType, TokenRange>& aResult) const
+    Result<LiteralType, TokenRange> RepeatMatch(MatchContext<LiteralType, TokenRange>& aContext,
+                                                const Result<LiteralType, TokenRange>& aResult) const
     {
         switch (aResult.GetType())
         {
             case MatchResultType::Failure:
 
                 if (aContext.myIndex > myCount.myMin)
-                    return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
-                                                                      aContext.mySubMatches};
+                    return MatchSuccess<LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
+                                                                 aContext.mySubMatches};
 
                 return MatchFailure{};
             case MatchResultType::Success:
@@ -281,22 +249,20 @@ private:
         }
 
         if (aContext.myIndex == myCount.myMax)
-            return MatchSuccess<Key, LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt,
-                                                              aContext.mySubMatches};
+            return MatchSuccess<LiteralType, TokenRange>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
 
         aContext.myIndex++;
 
-        return mySubFragments[0].myFragment->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
+        return mySubFragments[0]->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
     }
 
 private:
-    struct Mapping {
-        Key myKey;
-        const PatternMatcherFragment* myFragment = nullptr;
-    };
+    using LiteralValueType = std::ranges::range_value_t<LiteralType>;
 
+    Indexable<LiteralValueType, const PatternMatcherFragment*> myLUT;
+    size_t myLUTPortion;
     PatternMatcherFragmentType myType = PatternMatcherFragmentType::Literal;
     LiteralType myLiteral;
     RepeatCount myCount;
-    std::vector<Mapping> mySubFragments;
+    std::vector<PatternMatcherFragment*> mySubFragments;
 };

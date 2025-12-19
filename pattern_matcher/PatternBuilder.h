@@ -28,7 +28,7 @@ public:
         void NotOf(std::string aChars);
         void OneOf(std::string aChars);
 
-        PatternMatcherFragment<> Bake();
+        std::optional<PatternMatcherFragment<>> Bake(PatternMatcher<>& Patterns);
 
     private:
         enum class Mode

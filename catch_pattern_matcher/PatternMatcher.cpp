@@ -15,10 +15,8 @@ TEST_CASE("pattern_matcher::pattern_matcher::basic", "")
     matcher.AddLiteral("b", "b");
     matcher.AddLiteral("c", "c");
 
-    matcher.AddFragment("any", PatternMatcherFragment<>(PatternMatcherFragmentType::Alternative,
-                                                        std::vector<std::string>{"a", "b", "c"}));
-    matcher.AddFragment(
-        "all", PatternMatcherFragment<>(PatternMatcherFragmentType::Sequence, std::vector<std::string>{"a", "b", "c"}));
+    matcher.AddFragment("any") = {PatternMatcherFragmentType::Alternative, {matcher["a"], matcher["b"], matcher["c"]}};
+    matcher.AddFragment("all") = {PatternMatcherFragmentType::Sequence, {matcher["a"], matcher["b"], matcher["c"]}};
 
     REQUIRE(matcher.Resolve());
 
