@@ -14,3 +14,10 @@ TEST_CASE("pattern_matcher::integration::json_regression::structure_array_open_o
 
     REQUIRE(!matcher.Match("value", full));
 }
+
+TEST_CASE("pattern_matcher::integration::json_regression::string_1_2_3_bytes_UTF-8_sequences", "[regression]")
+{
+    PatternMatcher matcher = MakeJsonParser().Finalize();
+    std::string full(R"(["\u0060\u012a\u12AB"])");
+    REQUIRE(matcher.Match("value", full));
+}

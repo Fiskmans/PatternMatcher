@@ -4,18 +4,17 @@
 
 #include "pattern_matcher/PatternMatcher.h"
 
-std::optional<MatchSuccess<std::string, std::string_view>> Match(PatternMatcherFragment<>& aFragment,
-                                                                 std::string_view aText)
+std::optional<MatchSuccess<std::string_view>> Match(PatternMatcherFragment& aFragment, std::string_view aText)
 {
-    std::stack<MatchContext<std::string, std::string_view>> contexts;
+    std::stack<MatchContext<std::string_view>> contexts;
 
     contexts.push(aFragment.BeginMatch<std::string_view>(std::ranges::begin(aText), std::ranges::end(aText)));
 
-    Result<std::string, std::string_view> lastResult;
+    Result<std::string_view> lastResult;
 
     while (!contexts.empty())
     {
-        MatchContext<std::string, std::string_view>& ctx = contexts.top();
+        MatchContext<std::string_view>& ctx = contexts.top();
 
         lastResult = ctx.myPattern->ResumeMatch(ctx, lastResult);
 
@@ -55,7 +54,7 @@ std::optional<MatchSuccess<std::string, std::string_view>> Match(PatternMatcherF
 
 TEST_CASE("pattern_matcher::PatternMatcherFragment::Literal", "[fragments]")
 {
-    PatternMatcherFragment<> literal("a");
+    PatternMatcherFragment literal('a');
 
     auto start = literal.BeginMatch("a");
 
@@ -83,10 +82,10 @@ TEST_CASE("pattern_matcher::PatternMatcherFragment::Literal", "[fragments]")
 
 TEST_CASE("pattern_matcher::PatternMatcherFragment::Sequence", "[fragments]")
 {
-    PatternMatcherFragment<> a("a");
-    PatternMatcherFragment<> b("b");
+    PatternMatcherFragment a(PatternMatcherFragment::LiteralType{'a'});
+    PatternMatcherFragment b(PatternMatcherFragment::LiteralType{'b'});
 
-    PatternMatcherFragment<> sequence(PatternMatcherFragmentType::Sequence, {&a, &b});
+    PatternMatcherFragment sequence(PatternMatcherFragmentType::Sequence, {&a, &b});
 
     REQUIRE(sequence.Resolve());
 
@@ -108,10 +107,10 @@ TEST_CASE("pattern_matcher::PatternMatcherFragment::Sequence", "[fragments]")
 
 TEST_CASE("pattern_matcher::PatternMatcherFragment::Alternative", "[fragments]")
 {
-    PatternMatcherFragment<> a("a");
-    PatternMatcherFragment<> b("b");
+    PatternMatcherFragment a('a');
+    PatternMatcherFragment b('b');
 
-    PatternMatcherFragment<> alternative(PatternMatcherFragmentType::Alternative, {&a, &b});
+    PatternMatcherFragment alternative(PatternMatcherFragmentType::Alternative, {&a, &b});
 
     REQUIRE(alternative.Resolve());
 
@@ -136,8 +135,8 @@ TEST_CASE("pattern_matcher::PatternMatcherFragment::Alternative", "[fragments]")
 
 TEST_CASE("pattern_matcher::fragments::RepeatFragment", "[fragments]")
 {
-    PatternMatcherFragment<> a("a");
-    PatternMatcherFragment<> repeat(&a, RepeatCount(1, 3));
+    PatternMatcherFragment a('a');
+    PatternMatcherFragment repeat(&a, RepeatCount(1, 3));
 
     REQUIRE(repeat.Resolve());
 

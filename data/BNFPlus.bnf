@@ -1,0 +1,17 @@
+document:           declaration*
+
+declaration:        key value
+
+value:              key multiplier?
+value:              value whitespace key multiplier?
+multiplier:         \+
+multiplier:         \?
+multiplier:         \*
+
+whitespace:         whitespace_char*
+
+whitespace_char:    new-line
+whitespace_char:    carriage-return
+whitespace_char:    horizontal-tab
+whitespace_char:    vertical-tab
+whitespace_char:    space

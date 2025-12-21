@@ -5,26 +5,7 @@
 
 using Expect = std::expected<void, std::string>;
 
-template<std::ranges::range LiteralType>
 class PatternMatcherFragment;
-
-template<typename Index, class ValueType>
-class Indexable {
-public:
-    static constexpr bool IsIndexable = false;
-    static constexpr size_t Count     = 0;
-};
-
-template<class T>
-class Indexable<char, T> {
-public:
-    static constexpr bool IsIndexable = true;
-
-    T& operator[](char aIndex) { return myValues[(unsigned char)aIndex]; }
-    const T& operator[](char aIndex) const { return myValues[(unsigned char)aIndex]; }
-
-    T myValues[0x100];
-};
 
 enum class MatchResultType
 {
@@ -34,12 +15,14 @@ enum class MatchResultType
     None
 };
 
-struct MatchFailure {};
-struct MatchNone {};
+struct MatchFailure {
+};
+struct MatchNone {
+};
 
-template<std::ranges::range LiteralType, std::ranges::range TokenRange>
+template<std::ranges::range TokenRange>
 struct MatchSuccess {
-    const PatternMatcherFragment<LiteralType>* myPattern;
+    const PatternMatcherFragment* myPattern;
 
     std::ranges::iterator_t<TokenRange> myBegin;
     std::ranges::iterator_t<TokenRange> myEnd;
@@ -71,16 +54,16 @@ struct MatchSuccess {
     }
 };
 
-template<std::ranges::range LiteralType, std::ranges::range TokenRange>
+template<std::ranges::range TokenRange>
 struct MatchContext {
-    const PatternMatcherFragment<LiteralType>* myPattern;
+    const PatternMatcherFragment* myPattern;
 
     std::ranges::iterator_t<TokenRange> myBegin;
     std::ranges::iterator_t<TokenRange> myAt;
     std::ranges::sentinel_t<TokenRange> myEnd;
     int myIndex;
 
-    std::vector<MatchSuccess<LiteralType, TokenRange>> mySubMatches;
+    std::vector<MatchSuccess<TokenRange>> mySubMatches;
 
     auto begin() { return myBegin; }
     auto end() { return myEnd; }
@@ -107,10 +90,10 @@ struct MatchContext {
     }
 };
 
-template<std::ranges::range LiteralType, std::ranges::range TokenRange>
+template<std::ranges::range TokenRange>
 struct Result {
-    using SuccessType = MatchSuccess<LiteralType, TokenRange>;
-    using ContextType = MatchContext<LiteralType, TokenRange>;
+    using SuccessType = MatchSuccess<TokenRange>;
+    using ContextType = MatchContext<TokenRange>;
 
     Result(SuccessType aResult) : myResult(aResult) {}
     Result(MatchFailure aResult) : myResult(aResult) {}
@@ -143,12 +126,12 @@ private:
 };
 
 // Simple comparison helpers
-inline bool operator==(MatchSuccess<std::string, std::string_view> aMatch, const char* aString)
+inline bool operator==(MatchSuccess<std::string_view> aMatch, const char* aString)
 {
     return aMatch == std::string_view(aString);
 }
 
-inline bool operator==(MatchContext<std::string, std::string_view> aContext, const char* aString)
+inline bool operator==(MatchContext<std::string_view> aContext, const char* aString)
 {
     return aContext == std::string_view(aString);
 }

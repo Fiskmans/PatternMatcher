@@ -11,12 +11,11 @@ TEST_CASE("pattern_matcher::pattern_matcher::basic", "")
 
     using namespace std::string_view_literals;
 
-    matcher.AddLiteral("a", "a");
-    matcher.AddLiteral("b", "b");
-    matcher.AddLiteral("c", "c");
-
-    matcher.AddFragment("any") = {PatternMatcherFragmentType::Alternative, {matcher["a"], matcher["b"], matcher["c"]}};
-    matcher.AddFragment("all") = {PatternMatcherFragmentType::Sequence, {matcher["a"], matcher["b"], matcher["c"]}};
+    matcher.AllocateFragment("a")   = {matcher[(PatternMatcherFragment::LiteralType)'a'], {1, 1}};
+    matcher.AllocateFragment("b")   = {matcher[(PatternMatcherFragment::LiteralType)'b'], {1, 1}};
+    matcher.AllocateFragment("c")   = {matcher[(PatternMatcherFragment::LiteralType)'c'], {1, 1}};
+    matcher.AllocateFragment("any") = {PatternMatcherFragmentType::Alternative, matcher.Of("abc")};
+    matcher.AllocateFragment("all") = {PatternMatcherFragmentType::Sequence, matcher.Of("abc")};
 
     REQUIRE(matcher.Resolve());
 

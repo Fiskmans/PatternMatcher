@@ -14,9 +14,11 @@ struct Repeat {
 };
 }  // namespace builder_parts
 
-class PatternBuilder {
+class PatternBuilder
+{
 public:
-    class Builder {
+    class Builder
+    {
     public:
         Builder();
 
@@ -28,7 +30,7 @@ public:
         void NotOf(std::string aChars);
         void OneOf(std::string aChars);
 
-        std::optional<PatternMatcherFragment<>> Bake(PatternMatcher<>& Patterns);
+        std::optional<PatternMatcherFragment> Bake(PatternMatcher<>& Patterns);
 
     private:
         enum class Mode
@@ -47,7 +49,7 @@ public:
 
     Builder& Add(std::string aKey);
 
-    PatternMatcher<std::string, std::string> Finalize();
+    PatternMatcher<std::string> Finalize();
 
 private:
     std::unordered_map<std::string, Builder> myParts;

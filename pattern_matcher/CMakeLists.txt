@@ -1,4 +1,6 @@
 
+list(APPEND Files BNFPlus.cpp)
+list(APPEND Files BNFPlus.h)
 list(APPEND Files PatternBuilder.h)
 list(APPEND Files PatternBuilder.cpp)
 list(APPEND Files Concepts.h)

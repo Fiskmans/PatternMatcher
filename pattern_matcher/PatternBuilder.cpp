@@ -72,15 +72,15 @@ void PatternBuilder::Builder::OneOf(std::string aChars)
     }
 }
 
-std::optional<PatternMatcherFragment<>> PatternBuilder::Builder::Bake(PatternMatcher<>& aMatcher)
+std::optional<PatternMatcherFragment> PatternBuilder::Builder::Bake(PatternMatcher<>& aMatcher)
 {
-    std::vector<PatternMatcherFragment<>*> fragments;
+    std::vector<PatternMatcherFragment*> fragments;
 
     if (myMode != Mode::Literal)
     {
         for (std::string key : myParts)
         {
-            PatternMatcherFragment<>* fragment = aMatcher[key];
+            PatternMatcherFragment* fragment = aMatcher[key];
             if (!fragment)
             {
                 fprintf(stderr, "Missing fragment with key %s\n", key.c_str());
@@ -98,18 +98,17 @@ std::optional<PatternMatcherFragment<>> PatternBuilder::Builder::Bake(PatternMat
             break;
 
         case Mode::Literal:
-            assert(myParts.size() == 1);
-            return PatternMatcherFragment<>(myParts[0]);
+            return PatternMatcherFragment(PatternMatcherFragmentType::Sequence, aMatcher.Of(myParts[0]));
 
         case Mode::Sequence:
-            return PatternMatcherFragment<>(PatternMatcherFragmentType::Sequence, fragments);
+            return PatternMatcherFragment(PatternMatcherFragmentType::Sequence, fragments);
 
         case Mode::Alternative:
-            return PatternMatcherFragment<>(PatternMatcherFragmentType::Alternative, fragments);
+            return PatternMatcherFragment(PatternMatcherFragmentType::Alternative, fragments);
 
         case Mode::Repeat:
             assert(myParts.size() == 1);
-            return PatternMatcherFragment<>(fragments[0], myCount);
+            return PatternMatcherFragment(fragments[0], myCount);
     }
 
     std::unreachable();
@@ -117,18 +116,18 @@ std::optional<PatternMatcherFragment<>> PatternBuilder::Builder::Bake(PatternMat
 
 PatternBuilder::Builder& PatternBuilder::Add(std::string aKey) { return myParts[aKey]; }
 
-PatternMatcher<std::string, std::string> PatternBuilder::Finalize()
+PatternMatcher<std::string> PatternBuilder::Finalize()
 {
-    PatternMatcher<std::string, std::string> matcher;
+    PatternMatcher<std::string> matcher;
 
     for (auto& [key, part] : myParts)
     {
-        matcher.AddFragment(key);
+        matcher.AllocateFragment(key);
     }
 
     for (auto& [key, part] : myParts)
     {
-        std::optional<PatternMatcherFragment<>> fragment = part.Bake(matcher);
+        std::optional<PatternMatcherFragment> fragment = part.Bake(matcher);
         if (!fragment)
         {
             fprintf(stderr, "  In fragment %s\n", key.c_str());

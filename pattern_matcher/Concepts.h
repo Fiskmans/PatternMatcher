@@ -7,9 +7,8 @@ concept KeyedCollection = requires(T val) {
     { val.find(std::declval<KeyType>())->second } -> std::convertible_to<ValueType>;
 };
 
-template<class LeftRange, class RightRange>
+template<class Range, class T>
 concept RangeComparable = requires {
-    { std::ranges::range<LeftRange> };
-    { std::ranges::range<RightRange> };
-    { std::equality_comparable_with<std::ranges::range_value_t<LeftRange>, std::ranges::range_value_t<RightRange>> };
+    { std::ranges::range<Range> };
+    { std::equality_comparable_with<T, std::ranges::range_value_t<Range>> };
 };
