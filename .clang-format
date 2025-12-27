@@ -20,6 +20,7 @@ BraceWrapping:
   AfterCaseLabel: false
   AfterControlStatement: Always
   AfterFunction: true
+  AfterNamespace: true
   BeforeCatch: true
 
 SpaceAfterTemplateKeyword: false
@@ -27,3 +28,6 @@ SpaceAfterTemplateKeyword: false
 AccessModifierOffset: -4
 IndentAccessModifiers: false
 EmptyLineAfterAccessModifier: Never
+
+FixNamespaceComments: true
+NamespaceIndentation: All

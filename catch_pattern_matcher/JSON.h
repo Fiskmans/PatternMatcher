@@ -4,9 +4,9 @@
 
 #include "pattern_matcher/PatternBuilder.h"
 
-inline PatternBuilder MakeJsonParser()
+inline pattern_matcher::PatternBuilder MakeJsonParser()
 {
-    PatternBuilder builder;
+    pattern_matcher::PatternBuilder builder;
 
     RepeatCount optionally = {0, 1};
     RepeatCount anyAmount  = {0, RepeatCount::Unbounded};

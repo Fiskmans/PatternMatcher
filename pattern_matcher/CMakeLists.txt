@@ -1,14 +1,14 @@
 
 list(APPEND Files BNFPlus.cpp)
 list(APPEND Files BNFPlus.h)
-list(APPEND Files PatternBuilder.h)
-list(APPEND Files PatternBuilder.cpp)
 list(APPEND Files Concepts.h)
+list(APPEND Files Fragment.h)
+list(APPEND Files PatternBuilder.cpp)
+list(APPEND Files PatternBuilder.h)
 list(APPEND Files PatternMatcher.h)
-list(APPEND Files PatternMatcherFragment.h)
 list(APPEND Files PatternMatchingTypes.h)
-list(APPEND Files RepeatCount.h)
 list(APPEND Files RepeatCount.cpp)
+list(APPEND Files RepeatCount.h)
 
 add_library(pattern_matcher ${Files} )
 

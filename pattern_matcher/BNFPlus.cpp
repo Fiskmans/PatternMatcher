@@ -1,40 +1,45 @@
 #include "pattern_matcher/BNFPlus.h"
 
-PatternMatcher<BNFPlus::BNFFrag>& BNFPlus::BNFParser()
+namespace pattern_matcher
 {
-    static PatternMatcher<BNFPlus::BNFFrag> matcher;
 
-    if (matcher[BNFFrag::Document])
+    PatternMatcher<BNFPlus::BNFFrag>& BNFPlus::BNFParser()
+    {
+        static PatternMatcher<BNFPlus::BNFFrag> matcher;
+
+        if (matcher[BNFFrag::Document])
+            return matcher;
+
+        matcher.EmplaceFragment(BNFFrag::Document);
+        matcher.EmplaceFragment(BNFFrag::Space);
+        matcher.EmplaceFragment(BNFFrag::Key);
+        matcher.EmplaceFragment(BNFFrag::Key_Char);
+        matcher.EmplaceFragment(BNFFrag::Declaration);
+        matcher.EmplaceFragment(BNFFrag::Value);
+        matcher.EmplaceFragment(BNFFrag::Value_Part);
+        matcher.EmplaceFragment(BNFFrag::Optional_Multiplier);
+        matcher.EmplaceFragment(BNFFrag::Multiplier);
+        matcher.EmplaceFragment(BNFFrag::Multiplier_Plus);
+        matcher.EmplaceFragment(BNFFrag::Multiplier_Star);
+        matcher.EmplaceFragment(BNFFrag::Multiplier_Question);
+
+        std::size_t any = std::numeric_limits<std::size_t>::max();
+
+        *matcher[BNFFrag::Document] = Fragment(matcher[BNFFrag::Declaration], {0, any});
+
+        *matcher[BNFFrag::Declaration] =
+            Fragment(Fragment::Type::Sequence, {matcher[BNFFrag::Key], matcher[BNFFrag::Value]});
+
+        *matcher[BNFFrag::Key] = Fragment(matcher[BNFFrag::Key_Char], {1, any});
+
         return matcher;
+    }
 
-    matcher.AllocateFragment(BNFFrag::Document);
-    matcher.AllocateFragment(BNFFrag::Space);
-    matcher.AllocateFragment(BNFFrag::Key);
-    matcher.AllocateFragment(BNFFrag::Key_Char);
-    matcher.AllocateFragment(BNFFrag::Declaration);
-    matcher.AllocateFragment(BNFFrag::Value);
-    matcher.AllocateFragment(BNFFrag::Value_Part);
-    matcher.AllocateFragment(BNFFrag::Optional_Multiplier);
-    matcher.AllocateFragment(BNFFrag::Multiplier);
-    matcher.AllocateFragment(BNFFrag::Multiplier_Plus);
-    matcher.AllocateFragment(BNFFrag::Multiplier_Star);
-    matcher.AllocateFragment(BNFFrag::Multiplier_Question);
+    PatternMatcher<std::string> BNFPlus::Parse(const std::string& aText)
+    {
+        PatternMatcher<std::string> matcher;
 
-    std::size_t any = std::numeric_limits<std::size_t>::max();
+        return matcher;
+    }
 
-    *matcher[BNFFrag::Document] = PatternMatcherFragment(matcher[BNFFrag::Declaration], {0, any});
-
-    *matcher[BNFFrag::Declaration] =
-        PatternMatcherFragment(PatternMatcherFragmentType::Sequence, {matcher[BNFFrag::Key], matcher[BNFFrag::Value]});
-
-    *matcher[BNFFrag::Key] = PatternMatcherFragment(matcher[BNFFrag::Key_Char], {1, any});
-
-    return matcher;
-}
-
-PatternMatcher<std::string> BNFPlus::Parse(const std::string& aText)
-{
-    PatternMatcher<std::string> matcher;
-
-    return matcher;
-}
+}  // namespace pattern_matcher

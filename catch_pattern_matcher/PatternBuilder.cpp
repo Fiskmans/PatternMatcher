@@ -3,9 +3,11 @@
 
 #include <catch2/catch_all.hpp>
 
-TEST_CASE("pattern_matcher::builder::basic")
+TEST_CASE("builder::basic")
 {
     using namespace std::string_view_literals;
+    using namespace pattern_matcher;
+
     PatternBuilder builder;
 
     builder.Add("a") = "a";
