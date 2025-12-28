@@ -69,7 +69,7 @@ namespace pattern_matcher
     {
         std::vector<Fragment*> fragments;
 
-        if (myMode != Mode::Literal && myMode != Mode::Of && myMode != Mode::NotOf)
+        if (!IsPrimary())
         {
             for (std::string key : myParts)
             {
@@ -112,7 +112,25 @@ namespace pattern_matcher
         std::unreachable();
     }
 
-    PatternBuilder::Builder& PatternBuilder::Add(std::string aKey) { return myParts[aKey]; }
+    bool PatternBuilder::Builder::IsPrimary()
+    {
+        switch (myMode)
+        {
+            case Mode::Literal:
+            case Mode::Of:
+            case Mode::NotOf:
+                return true;
+
+            default:
+                return false;
+        }
+    }
+
+    PatternBuilder::Builder& PatternBuilder::operator[](std::string aKey)
+    {
+        myParts.push_back({aKey, {}});
+        return myParts[myParts.size() - 1].second;
+    }
 
     PatternMatcher<std::string> PatternBuilder::Finalize()
     {
@@ -121,18 +139,33 @@ namespace pattern_matcher
         for (auto& [key, part] : myParts)
         {
             matcher.EmplaceFragment(key);
+
+            if (part.IsPrimary())
+            {
+                std::optional<Fragment> fragment = part.Bake(matcher);
+                if (!fragment)
+                {
+                    fprintf(stderr, "  In fragment %s\n", key.c_str());
+                    continue;
+                }
+
+                *matcher[key] = *fragment;
+            }
         }
 
         for (auto& [key, part] : myParts)
         {
-            std::optional<Fragment> fragment = part.Bake(matcher);
-            if (!fragment)
+            if (!part.IsPrimary())
             {
-                fprintf(stderr, "  In fragment %s\n", key.c_str());
-                continue;
-            }
+                std::optional<Fragment> fragment = part.Bake(matcher);
+                if (!fragment)
+                {
+                    fprintf(stderr, "  In fragment %s\n", key.c_str());
+                    continue;
+                }
 
-            *matcher[key] = *fragment;
+                *matcher[key] = *fragment;
+            }
         }
 
         return matcher;

@@ -17,7 +17,7 @@ namespace pattern_matcher
     public:
         PatternMatcher()
         {
-            for (size_t i = 0; i < std::numeric_limits<Fragment::Literal>::max(); i++) myBuiltIns[i] = i;
+            for (size_t i = 0; i < std::numeric_limits<Fragment::Literal>::max(); i++) myLiterals[i] = i;
         };
 
         PatternMatcher(const PatternMatcher&)            = delete;
@@ -46,7 +46,7 @@ namespace pattern_matcher
             return &it->second;
         }
 
-        Fragment* operator[](Fragment::Literal aLiteral) { return myBuiltIns + aLiteral; }
+        Fragment* operator[](Fragment::Literal aLiteral) { return myLiterals + aLiteral; }
 
         std::vector<Fragment*> Of(std::string aList)
         {
@@ -64,7 +64,7 @@ namespace pattern_matcher
             do
             {
                 if (aList.find(i) == std::string::npos)
-                    out.push_back(myBuiltIns + i);
+                    out.push_back(myLiterals + i);
 
                 i++;
             } while (i < std::numeric_limits<Fragment::Literal>::max());
@@ -99,8 +99,8 @@ namespace pattern_matcher
 
                     if (fragment->GetType() == Fragment::Type::Literal)
                     {
-                        if (fragment > std::begin(myBuiltIns) && fragment < std::end(myBuiltIns))
-                            name = "Literal " + std::to_string(fragment - myBuiltIns);
+                        if (fragment > std::begin(myLiterals) && fragment < std::end(myLiterals))
+                            name = "Literal " + std::to_string(fragment - myLiterals);
 
                     } else
                     {
@@ -198,7 +198,7 @@ namespace pattern_matcher
 
             Result<TokenRange> lastResult;
 
-            bool debugDump = true;
+            bool debugDump = false;
 
             while (!contexts.empty())
             {
@@ -265,7 +265,7 @@ namespace pattern_matcher
     private:
         std::unordered_map<Key, Fragment> myFragments;
 
-        Fragment myBuiltIns[256];
+        Fragment myLiterals[256];
     };
 
 }  // namespace pattern_matcher

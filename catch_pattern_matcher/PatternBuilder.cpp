@@ -10,12 +10,12 @@ TEST_CASE("builder::basic")
 
     PatternBuilder builder;
 
-    builder.Add("a") = "a";
-    builder.Add("b") = "b";
-    builder.Add("c") = "c";
+    builder["a"] = "a";
+    builder["b"] = "b";
+    builder["c"] = "c";
 
-    builder.Add("any") || "a" || "b" || "c";
-    builder.Add("all") && "a" && "b" && "c";
+    builder["any"] || "a" || "b" || "c";
+    builder["all"] && "a" && "b" && "c";
 
     PatternMatcher matcher = builder.Finalize();
 

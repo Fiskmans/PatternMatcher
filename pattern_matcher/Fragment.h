@@ -27,13 +27,14 @@ namespace pattern_matcher
 
         enum class Type
         {
+            None,
             Literal,
             Repeat,
             Sequence,
             Alternative
         };
 
-        Fragment() : myType(Type::Literal), myLiteral(0) {}
+        Fragment() : myType(Type::None), myLiteral(0) {}
         Fragment(const Literal& aLiteral) : myType(Type::Literal), myLiteral(aLiteral) {}
         Fragment(Fragment* aSubPattern, RepeatCount aCount)
             : myType(Type::Repeat), mySubFragments({aSubPattern}), myCount(aCount)
@@ -107,6 +108,9 @@ namespace pattern_matcher
                     return AlternativeMatch(aContext, aResult);
                 case Type::Repeat:
                     return RepeatMatch(aContext, aResult);
+
+                case Type::None:
+                    break;
             }
 
             assert(false);
@@ -230,7 +234,7 @@ namespace pattern_matcher
     private:
         const Fragment* myLUT[1 << (sizeof(Literal) * CHAR_BIT)];
         size_t myLUTPortion;
-        Type myType = Type::Literal;
+        Type myType;
         Literal myLiteral;
         RepeatCount myCount;
         std::vector<Fragment*> mySubFragments;

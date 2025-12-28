@@ -52,8 +52,7 @@ TEST_CASE("integration::json", "")
 {
     pattern_matcher::PatternMatcher matcher = MakeJsonParser().Finalize();
 
-    std::filesystem::path file =
-        CATCH_JSON_TEST_CASES_PATH "/y_string_pi.json";  // GENERATE(Files(CATCH_JSON_TEST_CASES_PATH));
+    std::filesystem::path file = GENERATE(Files(CATCH_JSON_TEST_CASES_PATH));
 
     std::ifstream in(file);
 

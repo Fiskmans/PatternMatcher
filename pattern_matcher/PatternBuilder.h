@@ -7,9 +7,11 @@
 #include "pattern_matcher/PatternMatcher.h"
 #include "pattern_matcher/RepeatCount.h"
 
-namespace pattern_matcher {
+namespace pattern_matcher
+{
 
-    namespace builder_parts {
+    namespace builder_parts
+    {
         struct Repeat {
             std::string myBase;
             RepeatCount myCount;
@@ -34,6 +36,8 @@ namespace pattern_matcher {
 
             std::optional<pattern_matcher::Fragment> Bake(PatternMatcher<>& Patterns);
 
+            bool IsPrimary();
+
         private:
             enum class Mode
             {
@@ -51,11 +55,11 @@ namespace pattern_matcher {
             std::vector<std::string> myParts;
         };
 
-        Builder& Add(std::string aKey);
+        Builder& operator[](std::string aKey);
 
         PatternMatcher<std::string> Finalize();
 
     private:
-        std::unordered_map<std::string, Builder> myParts;
+        std::vector<std::pair<std::string, Builder>> myParts;
     };
 }  // namespace pattern_matcher

@@ -100,7 +100,13 @@ class FragmentPrinter:
 
         match fragType:
             case 'pattern_matcher::Fragment::Type::Literal':
-                return  "=[" + str(self.val["myLiteral"].bytes) + "]";
+                return  "<" + str(self.val["myLiteral"].bytes) + ">";
+
+            case 'pattern_matcher::Fragment::Type::Sequence':
+                return  "[" + str(self.val["mySubFragments"]) + "]";
+
+            case 'pattern_matcher::Fragment::Type::Alternative':
+                return  "(" + str(self.val["mySubFragments"]) + ")";
 
             case _:
                 return 'Unkown Type: ' + fragType
