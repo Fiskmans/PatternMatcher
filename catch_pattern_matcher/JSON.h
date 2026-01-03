@@ -8,9 +8,9 @@ inline pattern_matcher::PatternBuilder MakeJsonParser()
 {
     pattern_matcher::PatternBuilder builder;
 
-    RepeatCount optionally = {0, 1};
-    RepeatCount anyAmount  = {0, RepeatCount::Unbounded};
-    RepeatCount repeated   = {1, RepeatCount::Unbounded};
+    pattern_matcher::RepeatCount optionally = {0, 1};
+    pattern_matcher::RepeatCount anyAmount  = {0, pattern_matcher::RepeatCount::Unbounded};
+    pattern_matcher::RepeatCount repeated   = {1, pattern_matcher::RepeatCount::Unbounded};
 
     builder["quote"] = "\"";
 
@@ -50,8 +50,8 @@ inline pattern_matcher::PatternBuilder MakeJsonParser()
     builder["number-exponent"] && "number-exponent-e" && "number-exponent-sign-optional" && "number-at-least-one-digit";
     builder["number-exponent-optional"] = {"number-exponent", optionally};
 
-    builder["number"] && "minus-optional" && "number-decimal" && "number-fraction-optional" &&
-        "number-exponent-optional";
+    builder["number"] && "minus-optional" && "number-decimal" && "number-fraction-optional"
+        && "number-exponent-optional";
 
     builder["string-char-non-escaped"].NotOf(std::string("\\\"\n\b\t") + '\0');
 

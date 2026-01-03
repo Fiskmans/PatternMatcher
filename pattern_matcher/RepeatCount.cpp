@@ -1,16 +1,9 @@
 
 #include "pattern_matcher/RepeatCount.h"
 
-RepeatCount::RepeatCount(size_t aMin, size_t aMax)
-	: myMin(aMin)
-	, myMax(aMax)
+namespace pattern_matcher
 {
+    RepeatCount::RepeatCount(size_t aMin, size_t aMax) : myMin(aMin), myMax(aMax) {}
 
-}
-
-RepeatCount::RepeatCount(size_t aFixed)
-	: myMin(aFixed)
-	, myMax(aFixed)
-{
-
-}
+    RepeatCount::RepeatCount(size_t aFixed) : myMin(aFixed), myMax(aFixed) {}
+}  // namespace pattern_matcher

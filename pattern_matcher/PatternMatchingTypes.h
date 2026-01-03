@@ -1,11 +1,14 @@
 #pragma once
 
+#include <coroutine>
 #include <cstddef>
+#include <generator>
 #include <ranges>
 
 using Expect = std::expected<void, std::string>;
-namespace pattern_matcher {
 
+namespace pattern_matcher
+{
     class Fragment;
 
     enum class MatchResultType
@@ -16,25 +19,96 @@ namespace pattern_matcher {
         None
     };
 
-    struct MatchFailure {
+    struct MatchFailure
+    {
     };
-    struct MatchNone {
+    struct MatchNone
+    {
     };
 
-    template<std::ranges::range TokenRange>
-    struct MatchSuccess {
-        const Fragment* myPattern;
+    template<class Iterator>
+    struct Success
+    {
+        const Fragment* myFragment;
 
-        std::ranges::iterator_t<TokenRange> myBegin;
-        std::ranges::iterator_t<TokenRange> myEnd;
+        Iterator myBegin;
+        Iterator myEnd;
 
-        std::vector<MatchSuccess> mySubMatches;
+        std::vector<Success> mySubMatches;
 
         auto begin() { return myBegin; }
         auto end() { return myEnd; }
 
-        template<RangeComparable<TokenRange> Range>
-        bool operator==(Range&& aRange)
+        Success& operator[](int aIndex) { return mySubMatches[aIndex]; }
+        const Success& operator[](int aIndex) const { return mySubMatches[aIndex]; }
+
+        Success* Find(const Fragment* aFragment)
+        {
+            for (Success& child : mySubMatches)
+            {
+                if (child.myFragment == aFragment)
+                    return &child;
+
+                Success* found = child.Find(aFragment);
+                if (found)
+                    return found;
+            }
+
+            return nullptr;
+        }
+
+        enum class SearchMode
+        {
+            // Search only among children
+            TopLevelOnly,
+
+            // Search among all grandchildren, but not children of objects that match
+            Recursive,
+
+            // Search among all grandchildren, regardless of them being a child of an already returned object or not
+            All
+
+            /*
+            With the hierarchy:
+            1. foo
+            2.   foo
+            3. bar
+            4.   foo
+
+            SearchFor("foo", TopLevelOnly); -> [1]
+            SearchFor("foo", Recursive);    -> [1, 4]       (2 is skipped as its a child of 1)
+            SearchFor("foo", All);          -> [1, 2, 4]
+            */
+        };
+
+        std::generator<Success&> SearchFor(const Fragment* aFragment, SearchMode aMode = SearchMode::Recursive)
+        {
+            for (Success& child : mySubMatches)
+            {
+                if (child.myFragment == aFragment)
+                {
+                    co_yield child;
+
+                    if (aMode != SearchMode::All)
+                        continue;
+                }
+
+                if (aMode == SearchMode::TopLevelOnly)
+                    continue;
+
+                co_yield std::ranges::elements_of(child.SearchFor(aFragment, aMode));
+            }
+        }
+
+        bool operator==(const char* aString) const { return this->operator== <std::string_view>(aString); }
+        template<size_t Length>
+        bool operator==(const char aString[Length]) const
+        {
+            return this->operator== <std::string_view>(aString);
+        }
+
+        template<RangeComparable<std::iter_value_t<Iterator>> Range>
+        bool operator==(Range&& aRange) const
         {
             auto lAt  = myBegin;
             auto lEnd = myEnd;
@@ -55,46 +129,23 @@ namespace pattern_matcher {
         }
     };
 
-    template<std::ranges::range TokenRange>
-    struct MatchContext {
-        const pattern_matcher::Fragment* myPattern;
+    template<class Iterator>
+    struct MatchContext
+    {
+        const pattern_matcher::Fragment* myFragment;
 
-        std::ranges::iterator_t<TokenRange> myBegin;
-        std::ranges::iterator_t<TokenRange> myAt;
-        std::ranges::sentinel_t<TokenRange> myEnd;
+        Iterator myBegin;
+        Iterator myAt;
         int myIndex;
 
-        std::vector<MatchSuccess<TokenRange>> mySubMatches;
-
-        auto begin() { return myBegin; }
-        auto end() { return myEnd; }
-
-        template<RangeComparable<TokenRange> Range>
-        bool operator==(Range&& aRange)
-        {
-            auto lAt  = myBegin;
-            auto lEnd = myEnd;
-
-            auto rAt  = std::ranges::begin(aRange);
-            auto rEnd = std::ranges::end(aRange);
-
-            while (lAt != lEnd && rAt != rEnd)
-            {
-                if (!(*lAt == *rAt))
-                    return false;
-
-                ++lAt;
-                ++rAt;
-            }
-
-            return lAt == lEnd && rAt == rEnd;
-        }
+        std::vector<Success<Iterator>> mySubMatches;
     };
 
-    template<std::ranges::range TokenRange>
-    struct Result {
-        using SuccessType = MatchSuccess<TokenRange>;
-        using ContextType = MatchContext<TokenRange>;
+    template<class Iterator>
+    struct Result
+    {
+        using SuccessType = Success<Iterator>;
+        using ContextType = MatchContext<Iterator>;
 
         Result(SuccessType aResult) : myResult(aResult) {}
         Result(MatchFailure aResult) : myResult(aResult) {}
@@ -125,15 +176,4 @@ namespace pattern_matcher {
     private:
         std::variant<SuccessType, MatchFailure, ContextType, MatchNone> myResult;
     };
-
-    // Simple comparison helpers
-    inline bool operator==(MatchSuccess<std::string_view> aMatch, const char* aString)
-    {
-        return aMatch == std::string_view(aString);
-    }
-
-    inline bool operator==(MatchContext<std::string_view> aContext, const char* aString)
-    {
-        return aContext == std::string_view(aString);
-    }
 }  // namespace pattern_matcher

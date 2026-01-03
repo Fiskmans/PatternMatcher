@@ -5,23 +5,30 @@ ColumnLimit: 120
 DerivePointerAlignment: false
 PointerAlignment: Left
 
-AlignOperands: true
 AllowAllArgumentsOnNextLine: true
 AllowAllConstructorInitializersOnNextLine: true
 AllowShortIfStatementsOnASingleLine: Never
+AllowShortFunctionsOnASingleLine: Inline
+
+AlignOperands: AlignAfterOperator
 AlignConsecutiveAssignments: Consecutive
 AlignTrailingComments: true
 
 BreakBeforeBraces: Custom
 BraceWrapping:
   AfterEnum: true
-  AfterStruct: false
+  AfterStruct: true
   AfterClass: true
   AfterCaseLabel: false
   AfterControlStatement: Always
   AfterFunction: true
   AfterNamespace: true
   BeforeCatch: true
+  BeforeElse: true
+
+#BreakBinaryOperations: OnePerLine #Requires clang-format version >20
+BreakBeforeBinaryOperators: All 
+
 
 SpaceAfterTemplateKeyword: false
 

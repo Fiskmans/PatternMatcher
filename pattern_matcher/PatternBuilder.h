@@ -9,27 +9,26 @@
 
 namespace pattern_matcher
 {
-
-    namespace builder_parts
-    {
-        struct Repeat {
-            std::string myBase;
-            RepeatCount myCount;
-        };
-    }  // namespace builder_parts
-
     class PatternBuilder
     {
     public:
         class Builder
         {
         public:
+            struct Repeat
+            {
+                std::string myBase;
+                RepeatCount myCount;
+            };
+
             Builder();
 
             void operator=(std::string aLiteral);
-            void operator=(builder_parts::Repeat aRepeat);
+            void operator=(Repeat aRepeat);
             Builder& operator&&(std::string aPart);
+            Builder& operator&&(const std::vector<std::string>& aParts);
             Builder& operator||(std::string aPart);
+            Builder& operator||(const std::vector<std::string>& aParts);
 
             void NotOf(std::string aChars);
             void OneOf(std::string aChars);
@@ -55,9 +54,18 @@ namespace pattern_matcher
             std::vector<std::string> myParts;
         };
 
+        bool HasKey(std::string aKey);
         Builder& operator[](std::string aKey);
 
         PatternMatcher<std::string> Finalize();
+
+        static std::string ToString(Success<std::ranges::iterator_t<std::string>>& aSuccess);
+
+        static PatternMatcher<std::string> FromBNF(std::string aBNF);
+        struct Builtin
+        {
+            static PatternMatcher<std::string> BNF();
+        };
 
     private:
         std::vector<std::pair<std::string, Builder>> myParts;

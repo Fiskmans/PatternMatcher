@@ -73,39 +73,35 @@ namespace pattern_matcher
         ~Fragment() = default;
 
         Type GetType() const { return myType; }
+        const std::vector<Fragment*>& SubFragments() const { return mySubFragments; }
 
-        template<RangeComparable<Literal> TokenRange>
-        MatchContext<TokenRange> BeginMatch(std::ranges::iterator_t<TokenRange> aBegin,
-                                            std::ranges::sentinel_t<TokenRange> aEnd) const
+        template<class Iterator>
+        MatchContext<Iterator> BeginMatch(Iterator aBegin) const
         {
-            MatchContext<TokenRange> ctx;
+            MatchContext<Iterator> ctx;
 
-            ctx.myPattern = this;
-            ctx.myBegin   = aBegin;
-            ctx.myAt      = aBegin;
-            ctx.myEnd     = aEnd;
-            ctx.myIndex   = 0;
+            ctx.myFragment = this;
+            ctx.myBegin    = aBegin;
+            ctx.myAt       = aBegin;
+            ctx.myIndex    = 0;
 
             return ctx;
         }
 
-        MatchContext<std::string_view> BeginMatch(const char* aString) const
-        {
-            std::string_view view(aString);
-            return BeginMatch<std::string_view>(std::ranges::begin(view), std::ranges::end(view));
-        }
-
-        template<RangeComparable<Literal> TokenRange>
-        Result<TokenRange> ResumeMatch(MatchContext<TokenRange>& aContext, const Result<TokenRange>& aResult) const
+        template<class Iterator, class Sentinel>
+            requires std::equality_comparable_with<std::iter_value_t<Iterator>, Literal>
+                  && std::equality_comparable_with<Iterator, Sentinel>
+        Result<Iterator> ResumeMatch(MatchContext<Iterator>& aContext, const Result<Iterator>& aResult,
+                                     Sentinel aEnd) const
         {
             switch (myType)
             {
                 case Type::Literal:
-                    return LiteralMatch(aContext, aResult);
+                    return LiteralMatch(aContext, aResult, aEnd);
                 case Type::Sequence:
                     return SequenceMatch(aContext, aResult);
                 case Type::Alternative:
-                    return AlternativeMatch(aContext, aResult);
+                    return AlternativeMatch(aContext, aResult, aEnd);
                 case Type::Repeat:
                     return RepeatMatch(aContext, aResult);
 
@@ -118,17 +114,21 @@ namespace pattern_matcher
         }
 
     private:
-        template<RangeComparable<Literal> TokenRange>
-        Result<TokenRange> LiteralMatch(MatchContext<TokenRange>& aContext, const Result<TokenRange>& aResult) const
+        template<class Iterator, class Sentinel>
+        Result<Iterator> LiteralMatch(MatchContext<Iterator>& aContext, const Result<Iterator>& aResult,
+                                      Sentinel aEnd) const
         {
+            if (aContext.myAt == aEnd)
+                return MatchFailure{};
+
             if (myLiteral == *aContext.myAt)
-                return MatchSuccess<TokenRange>{this, aContext.myAt, aContext.myAt + 1};
+                return Success<Iterator>{this, aContext.myAt, aContext.myAt + 1};
 
             return MatchFailure{};
         }
 
-        template<RangeComparable<Literal> TokenRange>
-        Result<TokenRange> SequenceMatch(MatchContext<TokenRange>& aContext, const Result<TokenRange>& aResult) const
+        template<class Iterator>
+        Result<Iterator> SequenceMatch(MatchContext<Iterator>& aContext, const Result<Iterator>& aResult) const
         {
             switch (aResult.GetType())
             {
@@ -148,29 +148,29 @@ namespace pattern_matcher
             }
 
             if (aContext.myIndex == mySubFragments.size())
-                return MatchSuccess<TokenRange>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
+                return Success<Iterator>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
 
-            return mySubFragments[aContext.myIndex++]->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
+            return mySubFragments[aContext.myIndex++]->BeginMatch(aContext.myAt);
         }
 
-        template<RangeComparable<Literal> TokenRange>
-        Result<TokenRange> AlternativeMatch(MatchContext<TokenRange>& aContext, const Result<TokenRange>& aResult) const
+        template<class Iterator, class Sentinel>
+        Result<Iterator> AlternativeMatch(MatchContext<Iterator>& aContext, const Result<Iterator>& aResult,
+                                          Sentinel aEnd) const
         {
             if (aContext.myIndex == 0 && myLUTPortion > 0)
             {
-                if (aContext.myBegin != aContext.myEnd)
+                if (aContext.myBegin != aEnd)
                 {
-                    std::ranges::range_value_t<TokenRange> v = *aContext.myAt;
+                    std::iter_value_t<Iterator> v = *aContext.myAt;
 
                     const Fragment* fragment = myLUT[(Literal)v];
 
                     if (fragment)
                     {
-                        return MatchSuccess<TokenRange>{
-                            this,
-                            aContext.myAt,
-                            aContext.myAt + 1,
-                            {MatchSuccess<TokenRange>{fragment, aContext.myAt, aContext.myAt + 1}}};
+                        return Success<Iterator>{this,
+                                                 aContext.myAt,
+                                                 aContext.myAt + 1,
+                                                 {Success<Iterator>{fragment, aContext.myAt, aContext.myAt + 1}}};
                     }
                 }
 
@@ -183,7 +183,7 @@ namespace pattern_matcher
                 case MatchResultType::None:
                     break;
                 case MatchResultType::Success:
-                    return MatchSuccess<TokenRange>{
+                    return Success<Iterator>{
                         this, aResult.Success().myBegin, aResult.Success().myEnd, {aResult.Success()}};
                 case MatchResultType::InProgress:
                 default:
@@ -195,19 +195,18 @@ namespace pattern_matcher
             if (aContext.myIndex == mySubFragments.size())
                 return MatchFailure{};
 
-            return mySubFragments[aContext.myIndex++]->template BeginMatch<TokenRange>(aContext.myBegin,
-                                                                                       aContext.myEnd);
+            return mySubFragments[aContext.myIndex++]->BeginMatch(aContext.myBegin);
         }
 
-        template<RangeComparable<char> TokenRange>
-        Result<TokenRange> RepeatMatch(MatchContext<TokenRange>& aContext, const Result<TokenRange>& aResult) const
+        template<class Iterator>
+        Result<Iterator> RepeatMatch(MatchContext<Iterator>& aContext, const Result<Iterator>& aResult) const
         {
             switch (aResult.GetType())
             {
                 case MatchResultType::Failure:
 
                     if (aContext.myIndex > myCount.myMin)
-                        return MatchSuccess<TokenRange>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
+                        return Success<Iterator>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
 
                     return MatchFailure{};
                 case MatchResultType::Success:
@@ -224,11 +223,11 @@ namespace pattern_matcher
             }
 
             if (aContext.myIndex == myCount.myMax)
-                return MatchSuccess<TokenRange>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
+                return Success<Iterator>{this, aContext.myBegin, aContext.myAt, aContext.mySubMatches};
 
             aContext.myIndex++;
 
-            return mySubFragments[0]->template BeginMatch<TokenRange>(aContext.myAt, aContext.myEnd);
+            return mySubFragments[0]->BeginMatch(aContext.myAt);
         }
 
     private:

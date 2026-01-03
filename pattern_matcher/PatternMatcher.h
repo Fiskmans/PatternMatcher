@@ -72,14 +72,17 @@ namespace pattern_matcher
             return out;
         }
 
-        template<RangeComparable<Fragment::Literal> TokenRange>
-        void DebugDump(std::stack<MatchContext<TokenRange>> aStack)
+        template<class Iterator, class Sentinel>
+        void DebugDump(std::stack<MatchContext<Iterator>> aStack, Sentinel aEnd)
         {
+            const int height = 8;
+            const int width  = 120;  // does not include name of the fragments
+
             if (aStack.empty())
                 throw "No Contexts Supplied";
 
-            std::stack<MatchContext<TokenRange>> copy(aStack);
-            std::vector<MatchContext<TokenRange>> deStacked;
+            std::stack<MatchContext<Iterator>> copy(aStack);
+            std::vector<MatchContext<Iterator>> deStacked;
 
             while (!copy.empty())
             {
@@ -92,9 +95,19 @@ namespace pattern_matcher
 
             auto flushLines = [&lines, &deStacked, this]() {
                 fprintf(stderr, "\n");
-                for (int i = 0; i < lines.size(); i++)
+
+                int index = 0;
+
+                // Cut leading lines
+                while (index + height < lines.size())
                 {
-                    const Fragment* fragment = deStacked[i].myPattern;
+                    lines[index] = "";
+                    index++;
+                }
+
+                for (; index < lines.size(); index++)
+                {
+                    const Fragment* fragment = deStacked[index].myFragment;
                     std::string name         = "<external>";
 
                     if (fragment->GetType() == Fragment::Type::Literal)
@@ -114,29 +127,49 @@ namespace pattern_matcher
                         }
                     }
 
-                    fprintf(stderr, "%s %3i: %s[%i]\n", lines[i].c_str(), i, name.c_str(), deStacked[i].myIndex);
-                    lines[i] = "";
+                    fprintf(stderr, "%s %3i: %s[%i]", lines[index].c_str(), index, name.c_str(),
+                            deStacked[index].myIndex);
+
+                    if (deStacked[index].mySubMatches.size() > 0)
+                        fprintf(stderr, " (matches so far: %i)\n", (int)deStacked[index].mySubMatches.size());
+                    else
+                        fprintf(stderr, "\n");
+
+                    lines[index] = "";
                 }
+
+                // pad to fit
+                for (int i = 0; i < height - (int)lines.size(); i++) fprintf(stderr, "\n");
             };
 
-            auto it = deStacked[0].begin();
+            auto it = deStacked[0].myAt;
 
-            while (it != deStacked[0].end())
+            while (it != aEnd)
             {
                 Fragment::Literal c = (Fragment::Literal)*it;
 
                 if (c < std::numeric_limits<char>::max())
-                    fprintf(stderr, "%c", (char)c);
+                    switch (c)
+                    {
+                        case '\n':
+                            fprintf(stderr, "\u00b6");  // ¶
+                            break;
+                        case '\t':
+                            fprintf(stderr, "\u2192");  // →
+
+                        default:
+                            fprintf(stderr, "%c", (char)c);
+                    }
                 else
                     fprintf(stderr, "?");
 
                 for (size_t i = 0; i < deStacked.size(); i++)
                 {
-                    std::string& line             = lines[i];
-                    MatchContext<TokenRange>& ctx = deStacked[i];
+                    std::string& line           = lines[i];
+                    MatchContext<Iterator>& ctx = deStacked[i];
                     if (ctx.myAt == it)
                         line += '^';
-                    else if (ctx.begin() == it)
+                    else if (ctx.myBegin == it)
                         line += '~';
                     else if (line.empty())
                         line += ' ';
@@ -153,15 +186,15 @@ namespace pattern_matcher
                         }
                     }
                 }
-                if (lines[0].length() >= 80)
+                if (lines[0].length() >= width)
                     break;
                 it++;
             }
             flushLines();
         }
 
-        template<RangeComparable<Fragment::Literal> TokenRange>
-        void DebugDump(Result<TokenRange> aRes)
+        template<class Iterator>
+        void DebugDump(Result<Iterator> aRes)
         {
             switch (aRes.GetType())
             {
@@ -182,34 +215,44 @@ namespace pattern_matcher
             getc(stdin);
         }
 
-        template<RangeComparable<Fragment::Literal> TokenRange>
-        std::optional<MatchSuccess<TokenRange>> Match(Key aRoot, TokenRange aRange, size_t aMaxDepth = 2'048,
-                                                      size_t aMaxSteps = 4'294'967'296)
+        template<std::ranges::range Range>
+        std::optional<Success<std::ranges::iterator_t<Range>>> Match(Key aRoot, Range& aRange, size_t aMaxDepth = 2'048,
+                                                                     size_t aMaxSteps = 4'294'967'296)
         {
-            std::stack<MatchContext<TokenRange>> contexts;
-            auto it = myFragments.find(aRoot);
-            if (it == myFragments.end())
-                throw "No such pattern";
+            return Match(this->operator[](aRoot), std::ranges::begin(aRange), std::ranges::end(aRange), aMaxDepth,
+                         aMaxSteps);
+        }
+        template<std::ranges::range Range>
+        std::optional<Success<std::ranges::iterator_t<Range>>> Match(const Fragment* aRoot, Range& aRange,
+                                                                     size_t aMaxDepth = 2'048,
+                                                                     size_t aMaxSteps = 4'294'967'296)
+        {
+            return Match(aRoot, std::ranges::begin(aRange), std::ranges::end(aRange), aMaxDepth, aMaxSteps);
+        }
 
+        template<class Iterator, class Sentinel>
+        std::optional<Success<Iterator>> Match(const Fragment* aRoot, Iterator aBegin, Sentinel aEnd,
+                                               size_t aMaxDepth = 2'048, size_t aMaxSteps = 4'294'967'296)
+        {
             size_t steps = 0;
+            std::stack<MatchContext<Iterator>> contexts;
 
-            contexts.push(
-                it->second.template BeginMatch<TokenRange>(std::ranges::begin(aRange), std::ranges::end(aRange)));
+            contexts.push(aRoot->BeginMatch(aBegin));
 
-            Result<TokenRange> lastResult;
+            Result<Iterator> lastResult;
 
             bool debugDump = false;
 
             while (!contexts.empty())
             {
-                MatchContext<TokenRange>& ctx = contexts.top();
+                MatchContext<Iterator>& ctx = contexts.top();
 
-                const Fragment* fragment = ctx.myPattern;
+                const Fragment* fragment = ctx.myFragment;
 
                 if (debugDump)
-                    DebugDump(contexts);
+                    DebugDump(contexts, aEnd);
 
-                lastResult = ctx.myPattern->ResumeMatch(ctx, lastResult);
+                lastResult = ctx.myFragment->ResumeMatch(ctx, lastResult, aEnd);
 
                 if (debugDump)
                     DebugDump(lastResult);
@@ -256,10 +299,11 @@ namespace pattern_matcher
             std::unreachable();
         }
 
-        std::optional<MatchSuccess<std::string_view>> Match(Key aRoot, const char* aRange, size_t aMaxDepth = 2'048,
-                                                            size_t aMaxSteps = 4'294'967'296)
+        std::optional<Success<const char*>> Match(Key aRoot, const char* aRange, size_t aMaxDepth = 2'048,
+                                                  size_t aMaxSteps = 4'294'967'296)
         {
-            return Match<std::string_view>(aRoot, aRange, aMaxDepth, aMaxSteps);
+            std::string_view view(aRange);
+            return Match(this->operator[](aRoot), view.begin(), view.end(), aMaxDepth, aMaxSteps);
         }
 
     private:
