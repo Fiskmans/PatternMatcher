@@ -271,6 +271,8 @@ namespace pattern_matcher
                     subKeys.push_back(subKey);
                 }
 
+                std::reverse(std::begin(subKeys), std::end(subKeys));
+
                 out[key] || subKeys;
             }
         }
