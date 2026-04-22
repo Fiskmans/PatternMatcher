@@ -237,16 +237,16 @@ bat:
     REQUIRE(matcher["bat"]->GetType() == Fragment::Type::Alternative);
     REQUIRE(matcher["bat"]->SubFragments().size() == 3);
     REQUIRE(matcher["bat"]->SubFragments()[0]->GetType() == Fragment::Type::Sequence);
-    REQUIRE(matcher["bat"]->SubFragments()[0]->SubFragments()[0] == matcher['b']);
-    REQUIRE(matcher["bat"]->SubFragments()[0] == matcher["bat-0"]);
+    REQUIRE(matcher["bat"]->SubFragments()[0]->SubFragments()[0] == matcher['r']);
+    REQUIRE(matcher["bat"]->SubFragments()[0] == matcher["bat-2"]);
 
     REQUIRE(matcher["bat"]->SubFragments()[1]->GetType() == Fragment::Type::Sequence);
     REQUIRE(matcher["bat"]->SubFragments()[1]->SubFragments()[0] == matcher['a']);
     REQUIRE(matcher["bat"]->SubFragments()[1] == matcher["bat-1"]);
 
     REQUIRE(matcher["bat"]->SubFragments()[2]->GetType() == Fragment::Type::Sequence);
-    REQUIRE(matcher["bat"]->SubFragments()[2]->SubFragments()[0] == matcher['r']);
-    REQUIRE(matcher["bat"]->SubFragments()[2] == matcher["bat-2"]);
+    REQUIRE(matcher["bat"]->SubFragments()[2]->SubFragments()[0] == matcher['b']);
+    REQUIRE(matcher["bat"]->SubFragments()[2] == matcher["bat-0"]);
 
     REQUIRE(*matcher.Match("foo", "bar") == "bar");
 
