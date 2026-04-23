@@ -90,7 +90,7 @@ namespace pattern_matcher
                     }
                     else
                     {
-                        fprintf(stderr, "Missing fragment with key %s\n", key.c_str());
+                        fprintf(stderr, "Missing fragment with key: %s\n", key.c_str());
                         return {};
                     }
                 }
@@ -192,6 +192,12 @@ namespace pattern_matcher
             }
         }
 
+        for (auto& [key, fragment] : matcher.Fragments())
+        {
+            if (CheckForRecursion(&fragment, &fragment))
+                fprintf(stderr, "Recursion found in %s", key.c_str());
+        }
+
         return matcher;
     }
 
@@ -212,9 +218,12 @@ namespace pattern_matcher
         if (!parsed)
             return out.Finalize();
 
+        out["whitespace-char"].OneOf(" \r\n\t\b\v");
+        out["whitespace-optional"] = {"whitespace-char", {0, RepeatCount::Unbounded}};
+
         for (Success& declaration : parsed->SearchFor(metaParser["decl"]))
         {
-            std::string key = ToString(declaration[1]);
+            std::string key = ToString(*declaration.Find(metaParser["identifier"]));
 
             std::vector<std::vector<std::string>> options;
 
@@ -224,32 +233,50 @@ namespace pattern_matcher
 
                 for (Success& val : option.SearchFor(metaParser["value-part"]))
                 {
-                    std::string fragment = ToString(val[1]);
-                    Success* modifier    = val.Find(metaParser["repeat-char"]);
-
-                    if (modifier)
+                    Success* subFragmentName = val.Find(metaParser["identifier"]);
+                    Success* subLiteral = val.Find(metaParser["literal-content"]);
+                    std::string fragment;
+                    if (subFragmentName)
                     {
-                        Builder::Repeat repeat;
-                        repeat.myBase = fragment;
+                        fragment = ToString(*subFragmentName);
+                        Success* modifier    = val.Find(metaParser["repeat-char"]);
 
-                        switch (*modifier->begin())
+                        if (modifier)
                         {
-                            case '*':
-                                fragment += "-any";
-                                repeat.myCount = {0, RepeatCount::Unbounded};
-                                break;
-                            case '+':
-                                fragment += "-repeated";
-                                repeat.myCount = {1, RepeatCount::Unbounded};
-                                break;
-                            case '?':
-                                fragment += "-optional";
-                                repeat.myCount = {0, 1};
-                                break;
+                            Builder::Repeat repeat;
+                            repeat.myBase = fragment;
+
+                            switch (*modifier->begin())
+                            {
+                                case '*':
+                                    fragment += "-any";
+                                    repeat.myCount = {0, RepeatCount::Unbounded};
+                                    break;
+                                case '+':
+                                    fragment += "-repeated";
+                                    repeat.myCount = {1, RepeatCount::Unbounded};
+                                    break;
+                                case '?':
+                                    fragment += "-optional";
+                                    repeat.myCount = {0, 1};
+                                    break;
+                            }
+                            if (!out.HasKey(fragment))
+                                out[fragment] = repeat;
                         }
-                        if (!out.HasKey(fragment))
-                            out[fragment] = repeat;
                     }
+                    else if (subLiteral)
+                    {
+                        std::string literalString = ToString(*subLiteral);
+                        fragment   = "literal-" + literalString;
+
+                        if (!out.HasKey(fragment))
+                            out[fragment] = literalString;
+                    }
+
+                    if (sequence.size() > 0)
+                        if (!val.Find(metaParser["identifier-pipe"]))
+                            sequence.push_back("whitespace-optional");
 
                     sequence.push_back(fragment);
                 }
@@ -277,7 +304,54 @@ namespace pattern_matcher
             }
         }
 
+        std::string::iterator::difference_type left = std::end(aBNF) - parsed->myEnd;
+
+        if (left > 0)
+        {
+            std::string_view data(parsed->myEnd, std::end(aBNF)); 
+            fprintf(stderr, "%u bytes left at the end of bnf\n==== Skipped section ====\n%.*s\n==== End of skipped section ====\n", static_cast<unsigned int>(left), static_cast<int>(data.size()), &data.at(0));
+        }
+
         return out.Finalize();
+    }
+
+    std::vector<const Fragment*> NextSteps(const Fragment* aNode) 
+    {
+        switch (aNode->GetType())
+        {
+            case Fragment::Type::Alternative:
+                return aNode->SubFragments();
+            case Fragment::Type::Sequence:
+            case Fragment::Type::Repeat:
+                if (aNode->SubFragments().size() == 0)
+                    return {};
+                return {aNode->SubFragments()[0]};
+        }
+        return {};
+    }
+
+    bool PatternBuilder::CheckForRecursion(const Fragment* aTortoise, const Fragment* aHare) 
+    {
+        std::vector<const Fragment*> hare1 = NextSteps(aHare);
+        std::vector<const Fragment*> hare2;
+
+        if (std::find(std::begin(hare1), std::end(hare1), aTortoise) != std::end(hare1))
+            return true;
+
+        for (const Fragment* n : hare1)
+            for (const Fragment* n2 : NextSteps(n))
+                if (std::find(std::begin(hare2), std::end(hare2), n2) != std::end(hare2))
+                    hare2.push_back(n2);
+
+        if (std::find(std::begin(hare2), std::end(hare2), aTortoise) != std::end(hare2))
+            return true;
+
+        for (const Fragment* t : NextSteps(aTortoise))
+            for (const Fragment* h : hare2)
+                if (CheckForRecursion(t, h))
+                    return true;
+
+        return false;
     }
 
     PatternMatcher<std::string> PatternBuilder::Builtin::BNF()
@@ -285,12 +359,15 @@ namespace pattern_matcher
         PatternBuilder builder;
 
         builder["identifier-char"].OneOf("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-");
+        builder["literal-char"].NotOf("\" \t\n\r");
         builder["repeat-char"].OneOf("+*?");
-        builder["comment-initializer"].OneOf("#");
-        builder["colon"]         = ":";
-        builder["repeat"]        = {"repeat-char", {0, 1}};
-        builder["new-line-unix"] = "\n";
-        builder["new-line-win"]  = "\r\n";
+        builder["comment-initializer"] = "#";
+        builder["colon"]               = ":";
+        builder["pipe"]                = "|";
+        builder["quote"]               = "\"";
+        builder["repeat"]              = {"repeat-char", {0, 1}};
+        builder["new-line-unix"]       = "\n";
+        builder["new-line-win"]        = "\r\n";
         builder["new-line"] || "new-line-win" || "new-line-unix";
         builder["new-line-optional"] = {"new-line", {0, 1}};
 
@@ -299,19 +376,28 @@ namespace pattern_matcher
         builder["whitespace-optional"] = {"whitespace-char", {0, RepeatCount::Unbounded}};
 
         builder["identifier"] = {"identifier-char", {1, RepeatCount::Unbounded}};
+        builder["literal-content"] = {"literal-char", {1, RepeatCount::Unbounded}};
+        builder["literal"] && "quote" && "literal-content" && "quote";
 
-        builder["value-part"] && "whitespace" && "identifier" && "repeat";
-        builder["value"] = {"value-part", {1, RepeatCount::Unbounded}};
+        builder["value-subpart"] || "literal" || "identifier";
 
-        builder["values-single"] && "new-line" && "value";
+        builder["identifier-pipe"] && "pipe" && "whitespace-optional";
+        builder["identifier-pipe-optional"] = {"identifier-pipe", {0, 1}};
+
+        builder["value-part"] && "identifier-pipe-optional" && "value-subpart" && "repeat" && "whitespace-optional";
+        builder["value-part-repeated"] = {"value-part", {0, RepeatCount::Unbounded}};
+        builder["value-part-first"] && "value-subpart" && "repeat" && "whitespace-optional";
+        builder["value"] && "value-part-first" && "value-part-repeated";
+
+        builder["values-single"] && "new-line" && "whitespace" && "value";
         builder["values"] = {"values-single", {1, RepeatCount::Unbounded}};
 
-        builder["decl"] && "whitespace-optional" && "identifier" && "whitespace-optional" && "colon" && "values"
+        builder["decl"] && "whitespace-optional" && "identifier" && "whitespace-optional" && "colon" && "whitespace-optional" && "values"
             && "new-line-optional";
 
         builder["comment-char"].NotOf("\n");
         builder["comment-content"] = {"comment-char", {0, RepeatCount::Unbounded}};
-        builder["comment"] && "whitespace-optional" && "comment-initializer" && "comment-content"
+        builder["comment"] && "comment-initializer" && "comment-content"
             && "new-line-optional";
 
         builder["empty-line"] && "whitespace-optional" && "new-line";

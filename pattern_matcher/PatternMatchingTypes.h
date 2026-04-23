@@ -57,6 +57,21 @@ namespace pattern_matcher
             return nullptr;
         }
 
+        Success* Find(const std::vector<const Fragment*>& aFragments)
+        {
+            for (Success& child : mySubMatches)
+            {
+                if (std::find(std::begin(aFragments), std::end(aFragments), child.myFragment) != std::end(aFragments))
+                    return &child;
+
+                Success* found = child.Find(aFragments);
+                if (found)
+                    return found;
+            }
+
+            return nullptr;
+        }
+
         enum class SearchMode
         {
             // Search only among children

@@ -68,6 +68,8 @@ namespace pattern_matcher
         };
 
     private:
+        bool CheckForRecursion(const Fragment* aCurrent, const Fragment* aRoot);
+
         std::vector<std::pair<std::string, Builder>> myParts;
     };
 }  // namespace pattern_matcher

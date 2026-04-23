@@ -169,11 +169,11 @@ namespace pattern_matcher
                             break;
 
                         case '\t':
-                            fprintf(stderr, "\u2192");  // →
+                            fprintf(stderr, "\u00BB");  // »
                             break;
 
                         case '\r':
-                            fprintf(stderr, "\u2b10");  // ⬐
+                            fprintf(stderr, "\u00AB");  // «
                             break;
 
                         default:
@@ -264,7 +264,7 @@ namespace pattern_matcher
 
             Result<Iterator> lastResult;
 
-            bool debugDump = false;
+            constexpr bool debugDump = false;
 
             while (!contexts.empty())
             {
@@ -326,6 +326,11 @@ namespace pattern_matcher
                                                   size_t aMaxSteps = 4'294'967'296)
         {
             return Match(this->operator[](aRoot), aRange, aRange + ::strlen(aRange), aMaxDepth, aMaxSteps);
+        }
+
+        const std::unordered_map<Key, Fragment>& Fragments() 
+        {
+            return myFragments;
         }
 
     private:
