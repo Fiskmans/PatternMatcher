@@ -6,19 +6,19 @@
 
 namespace pattern_matcher
 {
-    std::optional<Success<const char*>> Match(Fragment& aFragment, std::string_view aText)
+    std::optional<Success<std::string_view::iterator>> Match(Fragment& aFragment, std::string_view aText)
     {
-        std::stack<MatchContext<const char*>> contexts;
+        std::stack<MatchContext<std::string_view::iterator>> contexts;
 
-        const char* end = std::ranges::end(aText);
+        std::string_view::iterator end = std::ranges::end(aText);
 
         contexts.push(aFragment.BeginMatch(std::ranges::begin(aText)));
 
-        Result<const char*> lastResult;
+        Result<std::string_view::iterator> lastResult;
 
         while (!contexts.empty())
         {
-            MatchContext<const char*>& ctx = contexts.top();
+            MatchContext<std::string_view::iterator>& ctx = contexts.top();
 
             lastResult = ctx.myFragment->ResumeMatch(ctx, lastResult, end);
 
@@ -61,6 +61,7 @@ namespace pattern_matcher
         Fragment literal('a');
 
         const char* str = "a";
+        const char* end = str + ::strlen(str);
 
         auto start = literal.BeginMatch(str);
 
@@ -74,7 +75,7 @@ namespace pattern_matcher
 
         {
             auto ctx = start;
-            auto res = literal.ResumeMatch(ctx, {}, std::ranges::end(std::string_view(str)));
+            auto res = literal.ResumeMatch(ctx, {}, end);
 
             REQUIRE(res.GetType() == MatchResultType::Success);
             REQUIRE(res.Success().myFragment == &literal);

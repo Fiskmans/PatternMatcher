@@ -10,16 +10,27 @@
 
 namespace pattern_matcher
 {
+    struct PatternMatcherLiterals
+    {
+        static constexpr size_t size = std::numeric_limits<Fragment::Literal>::max();
+
+        PatternMatcherLiterals();
+
+        const Fragment* operator[](Fragment::Literal aIndex) const;
+
+        bool Contains(const Fragment* aFragment) const;
+
+        Fragment::Literal ValueOf(const Fragment* aFragment) const;
+
+        Fragment ourLiterals[size];
+    };
+
 
     template<class Key = std::string>
     class PatternMatcher
     {
     public:
-        PatternMatcher()
-        {
-            for (size_t i = 0; i < std::numeric_limits<Fragment::Literal>::max(); i++) myLiterals[i] = i;
-        };
-
+        PatternMatcher()                                 = default;
         PatternMatcher(const PatternMatcher&)            = delete;
         PatternMatcher& operator=(const PatternMatcher&) = delete;
 
@@ -46,25 +57,25 @@ namespace pattern_matcher
             return &it->second;
         }
 
-        Fragment* operator[](Fragment::Literal aLiteral) { return myLiterals + aLiteral; }
+        const Fragment* operator[](Fragment::Literal aLiteral) { return ourLiterals[aLiteral]; }
 
-        std::vector<Fragment*> Of(std::string aList)
+        std::vector<const Fragment*> Of(std::string aList)
         {
-            std::vector<Fragment*> out;
+            std::vector<const Fragment*> out;
 
-            for (char c : aList) out.push_back((*this)[(Fragment::Literal)c]);
+            for (char c : aList) out.push_back(ourLiterals[(Fragment::Literal)c]);
 
             return out;
         }
 
-        std::vector<Fragment*> NotOf(std::string aList)
+        std::vector<const Fragment*> NotOf(std::string aList)
         {
-            std::vector<Fragment*> out;
+            std::vector<const Fragment*> out;
             Fragment::Literal i = std::numeric_limits<Fragment::Literal>::min();
             do
             {
                 if (aList.find(i) == std::string::npos)
-                    out.push_back(myLiterals + i);
+                    out.push_back(ourLiterals[i]);
 
                 i++;
             } while (i < std::numeric_limits<Fragment::Literal>::max());
@@ -112,8 +123,8 @@ namespace pattern_matcher
 
                     if (fragment->GetType() == Fragment::Type::Literal)
                     {
-                        if (fragment > std::begin(myLiterals) && fragment < std::end(myLiterals))
-                            name = "Literal " + std::to_string(fragment - myLiterals);
+                        if (ourLiterals.Contains(fragment))
+                            name = "Literal " + std::to_string(ourLiterals.ValueOf(fragment));
 
                     } else
                     {
@@ -149,19 +160,31 @@ namespace pattern_matcher
                 Fragment::Literal c = (Fragment::Literal)*it;
 
                 if (c < std::numeric_limits<char>::max())
+                {
+
                     switch (c)
                     {
                         case '\n':
                             fprintf(stderr, "\u00b6");  // ¶
                             break;
+
                         case '\t':
                             fprintf(stderr, "\u2192");  // →
+                            break;
+
+                        case '\r':
+                            fprintf(stderr, "\u2b10");  // ⬐
+                            break;
 
                         default:
                             fprintf(stderr, "%c", (char)c);
+                            break;
                     }
+                }
                 else
+                {
                     fprintf(stderr, "?");
+                }
 
                 for (size_t i = 0; i < deStacked.size(); i++)
                 {
@@ -302,14 +325,16 @@ namespace pattern_matcher
         std::optional<Success<const char*>> Match(Key aRoot, const char* aRange, size_t aMaxDepth = 2'048,
                                                   size_t aMaxSteps = 4'294'967'296)
         {
-            std::string_view view(aRange);
-            return Match(this->operator[](aRoot), view.begin(), view.end(), aMaxDepth, aMaxSteps);
+            return Match(this->operator[](aRoot), aRange, aRange + ::strlen(aRange), aMaxDepth, aMaxSteps);
         }
 
     private:
         std::unordered_map<Key, Fragment> myFragments;
 
-        Fragment myLiterals[256];
+        static const PatternMatcherLiterals ourLiterals;
     };
+
+    template<class Key>
+    const PatternMatcherLiterals PatternMatcher<Key>::ourLiterals;
 
 }  // namespace pattern_matcher

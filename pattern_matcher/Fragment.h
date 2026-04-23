@@ -23,6 +23,8 @@ namespace pattern_matcher
     {
     public:
         using Literal = unsigned char;
+        using SmallIndex = unsigned char;
+        static constexpr SmallIndex NoIndex = std::numeric_limits<SmallIndex>::max();
         static_assert(sizeof(Literal) == sizeof(std::byte));
 
         enum class Type
@@ -36,29 +38,32 @@ namespace pattern_matcher
 
         Fragment() : myType(Type::None), myLiteral(0) {}
         Fragment(const Literal& aLiteral) : myType(Type::Literal), myLiteral(aLiteral) {}
-        Fragment(Fragment* aSubPattern, RepeatCount aCount)
+        Fragment(const Fragment* aSubPattern, RepeatCount aCount)
             : myType(Type::Repeat), mySubFragments({aSubPattern}), myCount(aCount)
         {
         }
-        Fragment(Type aType, const std::vector<Fragment*> aFragments) : myType(aType), mySubFragments(aFragments)
+        Fragment(Type aType, const std::vector<const Fragment*> aFragments) : myType(aType), mySubFragments(aFragments)
         {
             assert(aType == Type::Sequence || aType == Type::Alternative);
-            for (Fragment* frag : aFragments) assert(frag);
+            for (const Fragment* frag : aFragments) assert(frag);
 
             if (myType == Type::Alternative)
             {
-                for (const Fragment*& fragment : myLUT)
+                for (SmallIndex& fragment : myLUT)
                 {
-                    fragment = nullptr;
+                    fragment = NoIndex;
                 }
 
                 myLUTPortion = 0;
-                for (const Fragment* fragment : mySubFragments)
+                for (SmallIndex i = 0; i < mySubFragments.size(); i++)
                 {
-                    if (fragment->myType != Type::Literal)
+                    if (i == NoIndex)
                         break;
 
-                    myLUT[(int)fragment->myLiteral] = fragment;
+                    if (mySubFragments[i]->myType != Type::Literal)
+                        break;
+
+                    myLUT[(int)mySubFragments[i]->myLiteral] = i;
                     myLUTPortion++;
                 }
             }
@@ -73,7 +78,7 @@ namespace pattern_matcher
         ~Fragment() = default;
 
         Type GetType() const { return myType; }
-        const std::vector<Fragment*>& SubFragments() const { return mySubFragments; }
+        const std::vector<const Fragment*>& SubFragments() const { return mySubFragments; }
 
         template<class Iterator>
         MatchContext<Iterator> BeginMatch(Iterator aBegin) const
@@ -163,14 +168,14 @@ namespace pattern_matcher
                 {
                     std::iter_value_t<Iterator> v = *aContext.myAt;
 
-                    const Fragment* fragment = myLUT[(Literal)v];
+                    SmallIndex index = myLUT[(Literal)v];
 
-                    if (fragment)
+                    if (index != NoIndex)
                     {
                         return Success<Iterator>{this,
                                                  aContext.myAt,
                                                  aContext.myAt + 1,
-                                                 {Success<Iterator>{fragment, aContext.myAt, aContext.myAt + 1}}};
+                                                 {Success<Iterator>{mySubFragments[index], aContext.myAt, aContext.myAt + 1}}};
                     }
                 }
 
@@ -231,12 +236,15 @@ namespace pattern_matcher
         }
 
     private:
-        const Fragment* myLUT[1 << (sizeof(Literal) * CHAR_BIT)];
-        size_t myLUTPortion;
+        SmallIndex myLUT[1 << (sizeof(Literal) * CHAR_BIT)];
         Type myType;
-        Literal myLiteral;
-        RepeatCount myCount;
-        std::vector<Fragment*> mySubFragments;
+        union
+        {
+            size_t myLUTPortion;    // type: Alternative
+            Literal myLiteral;      // type: Literal
+            RepeatCount myCount;    // type: Repeat
+        };
+        std::vector<const Fragment*> mySubFragments;
     };
 
 }  // namespace pattern_matcher

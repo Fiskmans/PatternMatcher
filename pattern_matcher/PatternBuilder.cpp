@@ -75,13 +75,13 @@ namespace pattern_matcher
 
     std::optional<Fragment> PatternBuilder::Builder::Bake(PatternMatcher<>& aMatcher)
     {
-        std::vector<Fragment*> fragments;
+        std::vector<const Fragment*> fragments;
 
         if (!IsPrimary())
         {
             for (std::string key : myParts)
             {
-                Fragment* fragment = aMatcher[key];
+                const Fragment* fragment = aMatcher[key];
                 if (!fragment)
                 {
                     if (key.length() == 1)
@@ -287,9 +287,11 @@ namespace pattern_matcher
         builder["identifier-char"].OneOf("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-");
         builder["repeat-char"].OneOf("+*?");
         builder["comment-initializer"].OneOf("#");
-        builder["colon"].OneOf(":");
-        builder["repeat"] = {"repeat-char", {0, 1}};
-        builder["new-line"].OneOf("\n");
+        builder["colon"]         = ":";
+        builder["repeat"]        = {"repeat-char", {0, 1}};
+        builder["new-line-unix"] = "\n";
+        builder["new-line-win"]  = "\r\n";
+        builder["new-line"] || "new-line-win" || "new-line-unix";
         builder["new-line-optional"] = {"new-line", {0, 1}};
 
         builder["whitespace-char"].OneOf(" \t");
